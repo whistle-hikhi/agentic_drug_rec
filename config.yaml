@@ -1,0 +1,32 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase 4 Agentic Drug Recommendation — Benchmark Config
+# ──────────────────────────────────────────────────────────────────────────────
+
+# LLM used for the ReAct agent and all Role-Play LLM arbitrations
+llm_model: "gpt-4o-mini"
+
+# ── Benchmark scope ────────────────────────────────────────────────────────────
+n_patients: 10
+dataset: "mimic3"
+
+# Include the DDI checker tool in the agent's tool set
+use_ddi: false
+
+# ── ML models loaded as Phase 4 tools ─────────────────────────────────────────
+# Must include all six models required by the three dual-model tools.
+models:
+  - retain
+  - gamenet
+  - safedrug
+  - molerec
+  - depot
+  - medalign
+
+# ── Path overrides (leave empty to use defaults) ───────────────────────────────
+# Default data_dir  : ../agentic_pipeline/medrec_pipeline/data/
+# Default ckpt_dir  : ../agentic_pipeline/medrec_pipeline/outputs/checkpoints/
+data_dir: ""
+ckpt_dir: ""
+
+# Directory for benchmark result JSON files
+output_dir: "outputs"

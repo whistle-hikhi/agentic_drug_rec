@@ -1,0 +1,43 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase 4 — Per-Model Uncertainty Windows
+#
+# Each model has its own accept_threshold and reject_threshold.
+# Per-drug score classification:
+#   ACCEPT    → score >= accept_threshold
+#   REJECT    → score <  reject_threshold
+#   UNCERTAIN → reject_threshold <= score < accept_threshold
+#
+# Per-tool combined zoning (two models per tool):
+#   AUTO_ACCEPT : both models say ACCEPT  → drug passes directly
+#   AUTO_REJECT : both models say REJECT  → drug dropped silently
+#   UNCERTAIN   : any other combination   → sent to Role-Play LLM
+# ──────────────────────────────────────────────────────────────────────────────
+
+models:
+
+  # ── Longitudinal Tool (RETAIN + GAMENet) ───────────────────────────────────
+  retain:
+    accept_threshold: 0.60
+    reject_threshold: 0.40
+
+  gamenet:
+    accept_threshold: 0.60
+    reject_threshold: 0.40
+
+  # ── Safety Molecule Tool (SafeDrug + MoleRec) ──────────────────────────────
+  safedrug:
+    accept_threshold: 0.60
+    reject_threshold: 0.40
+
+  molerec:
+    accept_threshold: 0.60
+    reject_threshold: 0.40
+
+  # ── EHR-Centric Tool (DEPOT + MedAlign) ───────────────────────────────────
+  depot:
+    accept_threshold: 0.60
+    reject_threshold: 0.40
+
+  medalign:
+    accept_threshold: 0.60
+    reject_threshold: 0.40
