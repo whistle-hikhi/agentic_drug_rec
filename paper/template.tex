@@ -1,0 +1,481 @@
+\documentclass[sigconf,anonymous]{acmart}
+\usepackage{todonotes}
+\AtBeginDocument{%
+  \providecommand\BibTeX{{%
+    Bib\TeX}}}
+
+\setcopyright{acmlicensed}
+\copyrightyear{2018}
+\acmYear{2018}
+\acmDOI{XXXXXXX.XXXXXXX}
+\acmConference[Conference acronym 'XX]{Make sure to enter the correct
+  conference title from your rights confirmation email}{June 03--05,
+  2018}{Woodstock, NY}
+\acmISBN{978-1-4503-XXXX-X/2018/06}
+\begin{document}
+
+\title{Early Fusion Meets Feedback: Mixture-of-Experts Multi-View Recommendation with Iterative Refinement}
+
+\author{Ben Trovato}
+\authornote{Both authors contributed equally to this research.}
+\email{trovato@corporation.com}
+\orcid{1234-5678-9012}
+\author{G.K.M. Tobin}
+\authornotemark[1]
+\email{webmaster@marysville-ohio.com}
+\affiliation{%
+  \institution{Institute for Clarity in Documentation}
+  \city{Dublin}
+  \state{Ohio}
+  \country{USA}
+}
+
+\author{Lars Th{\o}rv{\"a}ld}
+\affiliation{%
+  \institution{The Th{\o}rv{\"a}ld Group}
+  \city{Hekla}
+  \country{Iceland}}
+\email{larst@affiliation.org}
+
+\author{Valerie B\'eranger}
+\affiliation{%
+  \institution{Inria Paris-Rocquencourt}
+  \city{Rocquencourt}
+  \country{France}
+}
+
+\author{Aparna Patel}
+\affiliation{%
+ \institution{Rajiv Gandhi University}
+ \city{Doimukh}
+ \state{Arunachal Pradesh}
+ \country{India}}
+
+\author{Huifen Chan}
+\affiliation{%
+  \institution{Tsinghua University}
+  \city{Haidian Qu}
+  \state{Beijing Shi}
+  \country{China}}
+
+\author{Charles Palmer}
+\affiliation{%
+  \institution{Palmer Research Laboratories}
+  \city{San Antonio}
+  \state{Texas}
+  \country{USA}}
+\email{cpalmer@prl.com}
+
+\author{John Smith}
+\affiliation{%
+  \institution{The Th{\o}rv{\"a}ld Group}
+  \city{Hekla}
+  \country{Iceland}}
+\email{jsmith@affiliation.org}
+
+\author{Julius P. Kumquat}
+\affiliation{%
+  \institution{The Kumquat Consortium}
+  \city{New York}
+  \country{USA}}
+\email{jpkumquat@consortium.net}
+
+\renewcommand{\shortauthors}{Trovato et al.}
+
+\begin{abstract}
+  Modern recommendation systems rely on heterogeneous signals such as sequential behavior, collaborative relationships, and semantic content. However, existing pipelines typically combine these signals using late fusion or heuristic weighting, which limits cross-signal interaction and weakens candidate quality. Inspired by recent agentic and multi-stage recommendation frameworks that emphasize reasoning-aware ranking and adaptive signal integration, we propose a Mixture-of-Experts Recommendation (MoE-Rec) architecture that performs early fusion of heterogeneous recommendation experts followed by fine-grained reranking and iterative refinement. MoE-Rec integrates recent user behavior patterns, similar-user/item relationships, and content-based semantic matching through a learnable gating module to generate unified candidates, followed by a cross-signal reranker and a lightweight feedback loop for adaptive refinement. Experiments show consistent improvements in recall and ranking metrics, demonstrating the effectiveness of early expert fusion for multi-signal recommendation.
+\end{abstract}
+
+\keywords{LLM, Recommendation Systems}
+
+\maketitle
+
+\section{Introduction}
+
+Modern recommendation systems rely on heterogeneous signals such as sequential behavior, collaborative relationships, and semantic content. These signals capture complementary aspects of user preference, including short-term intent, shared interests across users, and content-level relevance. Recent studies have explored leveraging multiple signals to improve recommendation performance, motivating hybrid and multi-source recommendation architectures. However, effectively integrating these heterogeneous signals remains a challenging problem, particularly in large-scale retrieval and ranking pipelines.
+
+Sequential recommendation models have been widely adopted to capture user intent from interaction histories. Transformer-based and attention-driven architectures model temporal dependencies in user behavior and have demonstrated strong performance in next-item prediction tasks. Despite their effectiveness, these approaches primarily rely on interaction sequences and often overlook collaborative relationships and content-based semantics. Consequently, sequential models may produce limited candidate diversity and may struggle in sparse or cold-start scenarios where interaction history is insufficient.
+
+Collaborative and graph-based recommendation methods aim to address these limitations by modeling relationships between users and items. Graph neural networks and neighborhood-based approaches propagate preference signals across interaction graphs to improve generalization. While effective at capturing similarity patterns, these methods typically underemphasize temporal dynamics and semantic relevance. Additionally, collaborative propagation may introduce noise and reduce personalization when user interests shift over time.
+
+However, existing pipelines typically combine these signals using late fusion or heuristic weighting, which limits cross-signal interaction and weakens candidate quality. Inspired by recent agentic and multi-stage recommendation frameworks that emphasize reasoning-aware ranking and adaptive signal integration, we propose a \textbf{Mixture-of-Experts Recommendation (MoE-Rec)} architecture that performs early fusion of heterogeneous recommendation experts followed by fine-grained reranking and iterative refinement. Specifically, MoE-Rec integrates recent user behavior patterns, similar-user/item relationships, and content-based semantic matching through a learnable gating mechanism to generate unified candidates. A cross-signal reranker further refines the candidate set, followed by a lightweight feedback loop for adaptive refinement.
+
+The main contributions of this work are summarized as follows:
+
+\begin{itemize}
+\item We propose a \textbf{Mixture-of-Experts early-fusion framework} that jointly integrates recent behavior, collaborative relationships, and semantic retrieval signals for unified candidate generation.
+
+\item We introduce a \textbf{two-stage recommendation pipeline} consisting of rough candidate generation via expert fusion and fine-grained reranking using cross-signal features.
+
+\item We design a \textbf{feedback-based refinement loop} that adaptively updates expert contributions to improve Top-$K$ ranking performance.
+\end{itemize}
+
+\section{Proposed Framework}
+
+\subsection{Framework Overview}
+
+\begin{figure*}[h]
+  \centering
+  \includegraphics[width=.8\linewidth]{assets/framework.png}
+  \caption{Framework Overview}
+  \label{fig:framework}
+\end{figure*}
+
+Figure~\ref{fig:framework} illustrates the overall architecture of the proposed \textbf{MoERec} framework. MoERec integrates heterogeneous recommendation signals through a Mixture-of-Experts early-fusion strategy, followed by multi-stage ranking and adaptive refinement. The framework consists of three main components: (1) multi-expert candidate generation, (2) cross-signal reranking, and (3) feedback-based refinement.
+
+First, MoERec constructs candidate items using multiple specialized experts that capture complementary user preferences, including recent behavior patterns, collaborative relationships, and content-based semantic matching. A learnable gating module performs early fusion over expert outputs to generate a unified candidate pool. This design enables cross-signal interaction during candidate generation and improves recall quality compared with independent retrieval.
+
+Next, the unified candidate set is passed to a fine-grained reranking stage. The reranker jointly considers features derived from all experts and performs cross-signal interaction to refine Top-$K$ recommendations. This two-stage design separates rough candidate generation from precise ranking, improving both recall and precision.
+
+Finally, MoERec incorporates a feedback-based refinement loop that adaptively updates expert contributions based on ranking outcomes. This iterative refinement improves Top-$K$ performance and stabilizes expert specialization across users and contexts.
+
+\subsection{Multi-View Experts}
+
+To capture heterogeneous user preferences, MoERec employs multiple specialized experts, where each expert models a different view of user--item relevance. These experts generate complementary candidate signals that are later integrated through the Mixture-of-Experts fusion module. We consider three views: recent behavior patterns, collaborative relationships, and semantic content matching.
+
+Let $\mathcal{U}$ and $\mathcal{I}$ denote the sets of users and items, respectively. For a user $u \in \mathcal{U}$, we denote the historical interaction sequence as
+\begin{equation}
+\mathbf{s}_u = [i_1, i_2, \ldots, i_T], \quad i_t \in \mathcal{I},
+\end{equation}
+where $T$ is the sequence length. The goal of each expert is to compute a relevance score for candidate item $i \in \mathcal{I}$:
+\begin{equation}
+s^{(k)}(u,i) = f_k(u,i), \quad k \in \{b,c,m\},
+\end{equation}
+where $b$, $c$, and $m$ denote the behavior-based, collaborative, and semantic experts, respectively.
+
+\paragraph{Behavior-based Expert.}
+The behavior-based expert models user preferences from recent interaction sequences. Given $\mathbf{s}_u$, we learn sequential representations using a sequence encoder:
+\begin{equation}
+\mathbf{h}_u^{b} = f_b(\mathbf{s}_u),
+\end{equation}
+where $f_b(\cdot)$ denotes a sequential model (e.g., Transformer encoder). The relevance score between user $u$ and candidate item $i$ is computed as
+\begin{equation}
+s^{(b)}(u,i) = (\mathbf{h}_u^{b})^\top bf{e}_i
+\end{equation}
+where $\mathbf{e}_i \in \mathbb{R}^d$ is the embedding of item $i$. This expert captures short-term intent and temporal dynamics.
+
+\paragraph{Collaborative Expert.}
+The collaborative expert models relationships among users and items based on interaction structures. Let $\mathcal{G}=(\mathcal{U}\cup\mathcal{I}, \mathcal{E})$ denote the user--item interaction graph. A graph encoder learns user and item representations:
+\begin{equation}
+\mathbf{h}_u^{c}, \mathbf{h}_i^{c} = f_c(\mathcal{G}),
+\end{equation}
+where $f_c(\cdot)$ denotes a graph-based encoder. The collaborative relevance score is computed as
+\begin{equation}
+s^{(c)}(u,i) = (\mathbf{h}_u^{c})^\top \mathbf{h}_i^{c}.
+\end{equation}
+This expert captures similarity patterns across users and items.
+
+\paragraph{Semantic Expert.}
+The semantic expert retrieves candidates based on content-level similarity. Let $\mathbf{z}_u$ and $\mathbf{z}_i$ denote semantic embeddings for user context and item content, respectively. These embeddings can be obtained from textual descriptions, metadata, or pretrained encoders. The semantic score is computed as
+\begin{equation}
+s^{(m)}(u,i) = \text{sim}(\mathbf{z}_u, \mathbf{z}_i),
+\end{equation}
+where $\text{sim}(\cdot)$ denotes cosine similarity or inner product. This expert captures semantic relevance and improves diversity.
+
+\paragraph{Multi-View Candidate Signals.}
+Each expert produces a relevance score for candidate items. We collect multi-view scores as
+\begin{equation}
+\mathbf{s}(u,i) = 
+\left[
+s^{(b)}(u,i),
+s^{(c)}(u,i),
+s^{(m)}(u,i)
+\right].
+\end{equation}
+These complementary signals are fused by the Mixture-of-Experts module described in the next subsection to produce unified candidate rankings.
+
+\subsection{MoE Early Fusion}
+
+Given the multi-view expert scores, MoERec employs a Mixture-of-Experts (MoE) module to perform early fusion for unified candidate generation. Instead of combining expert outputs using fixed weights or late fusion, the MoE module dynamically learns the contribution of each expert based on user--item context. This enables adaptive integration of heterogeneous signals during candidate generation.
+
+Let the three expert scores for user $u$ and item $i$ be
+\begin{equation}
+s^{(b)}(u,i), \quad s^{(c)}(u,i), \quad s^{(m)}(u,i),
+\end{equation}
+corresponding to the behavior-based, collaborative, and semantic experts, respectively. We first construct the expert feature vector:
+\begin{equation}
+\mathbf{x}_{u,i} =
+\left[
+s^{(b)}(u,i),
+s^{(c)}(u,i),
+s^{(m)}(u,i)
+\right].
+\end{equation}
+
+The gating network computes adaptive expert weights:
+\begin{equation}
+\mathbf{g}(u,i) =
+\text{softmax}\left(
+\text{MLP}(\mathbf{x}_{u,i})
+\right),
+\end{equation}
+where
+\begin{equation}
+\mathbf{g}(u,i) =
+\left[
+g_b(u,i),
+g_c(u,i),
+g_m(u,i)
+\right]
+\end{equation}
+denotes the mixture weights for the three experts.
+
+The fused relevance score is computed as a weighted combination of expert outputs:
+\begin{equation}
+s_0(u,i)
+=
+g_b(u,i)s^{(b)}(u,i)
++
+g_c(u,i)s^{(c)}(u,i)
++
+g_m(u,i)s^{(m)}(u,i).
+\end{equation}
+
+Using the fused score, we construct the rough candidate set:
+\begin{equation}
+C_M(u) = \text{Top-}M_{i \in \mathcal{I}} \; s_0(u,i),
+\end{equation}
+where $M$ denotes the size of the rough candidate pool.
+
+This MoE-based early fusion allows the model to dynamically emphasize different experts for different users and items. For example, the gating network may assign higher weights to behavior signals for users with rich interaction history, while relying more on semantic or collaborative signals in sparse scenarios. The fused candidate set $C_M(u)$ is then passed to the fine-grained reranking stage.
+
+\subsection{Simulation-based Fine-grained Reranking}
+
+After MoE-based early fusion, we obtain a rough candidate set
+\begin{equation}
+C_M(u) = \text{Top-}M_{i \in \mathcal{I}} \; s_0(u,i),
+\end{equation}
+which contains items with high relevance under the fused multi-view score. To further improve ranking precision, we employ a simulation-based reranker that evaluates candidate items by simulating user preference.
+
+We first construct a user preference representation from interaction history and multi-view signals:
+\begin{equation}
+P_u = f_{\text{profile}}(\mathbf{s}_u, \mathbf{h}_u^{b}, \mathbf{h}_u^{c}, \mathbf{z}_u),
+\end{equation}
+where $P_u$ summarizes user behavior patterns, collaborative relationships, and semantic interests.
+
+Given the candidate set $C_M(u)$, the simulation-based reranker estimates the preference score for each candidate item:
+\begin{equation}
+s_{\text{sim}}(u,i) = f_{\text{sim}}(P_u, i), \quad i \in C_M(u),
+\end{equation}
+where $f_{\text{sim}}(\cdot)$ denotes a user simulation function that evaluates item relevance conditioned on the inferred user preference.
+
+The reranked score combines the MoE fusion score and simulated preference:
+\begin{equation}
+s_1(u,i)
+=
+\alpha s_0(u,i)
++
+(1-\alpha)s_{\text{sim}}(u,i),
+\end{equation}
+where $\alpha$ balances retrieval relevance and simulated preference.
+
+We then select the Top-$K$ items:
+\begin{equation}
+C_K(u) = \text{Top-}K_{i \in C_M(u)} \; s_1(u,i).
+\end{equation}
+
+This simulation-based reranking stage refines candidate ranking by modeling user preference explicitly, enabling more accurate Top-$K$ recommendations while operating on a reduced candidate set.
+
+% \subsection{Fine-grained Reranker}
+
+% \todo{Change this feature-based reranker to RecHacker}
+
+% After MoE-based early fusion, we obtain a rough candidate set
+% \begin{equation}
+% C_M(u) = \text{Top-}M_{i \in \mathcal{I}} \; s_0(u,i),
+% \end{equation}
+% which contains items with high relevance under the fused multi-view score. To further improve ranking precision, MoERec employs a \textit{feature-based reranker} that models cross-view interactions using compact signals derived from all experts.
+
+% For each candidate item $i \in C_M(u)$, we construct a feature vector that aggregates multi-view representations and expert scores:
+% \begin{equation}
+% \mathbf{r}_{u,i} =
+% \left[
+% \mathbf{h}_u^{b},
+% \mathbf{h}_u^{c},
+% \mathbf{z}_u,
+% \mathbf{e}_i,
+% \mathbf{h}_i^{c},
+% \mathbf{z}_i,
+% s^{(b)}(u,i),
+% s^{(c)}(u,i),
+% s^{(m)}(u,i),
+% s_0(u,i)
+% \right],
+% \end{equation}
+% where $\mathbf{h}_u^{b}$ and $\mathbf{h}_u^{c}$ denote user representations from the behavior and collaborative experts, $\mathbf{z}_u$ and $\mathbf{z}_i$ denote semantic embeddings, and $s^{(b)}, s^{(c)}, s^{(m)}$ are the expert scores.
+
+% The reranker computes a refined relevance score using a lightweight neural scoring function:
+% \begin{equation}
+% s_1(u,i) = f_r(\mathbf{r}_{u,i}),
+% \end{equation}
+% where $f_r(\cdot)$ is implemented as a multi-layer perceptron (MLP) that captures non-linear interactions across multi-view features. Compared with token-level cross-attention models, the feature-based reranker is computationally efficient while still modeling complementary signals from different experts.
+
+% We then select the Top-$K$ items from the reranked scores:
+% \begin{equation}
+% C_K(u) = \text{Top-}K_{i \in C_M(u)} \; s_1(u,i).
+% \end{equation}
+
+% This fine-grained reranking stage improves ranking precision while preserving candidate diversity introduced by the MoE early fusion. By operating on a reduced candidate pool, the reranker remains efficient and scalable for large-scale recommendation settings.
+
+\subsection{Reflective-based Refinement}
+
+To further refine the Top-$K$ recommendations, we introduce a \textit{reflective refinement} module that performs a lightweight agentic refinement over the reranked candidates. Instead of relying solely on static reranking scores, this component simulates user preference and reflects on the consistency of multi-view signals to adjust the final ranking.
+
+Given the reranked candidate set
+\begin{equation}
+C_K(u) = \text{Top-}K_{i \in C_M(u)} \; s_1(u,i),
+\end{equation}
+we first construct a simulated user preference score for each candidate:
+\begin{equation}
+\hat{r}(u,i) = f_{\text{sim}}(\mathbf{r}_{u,i}),
+\end{equation}
+where $f_{\text{sim}}(\cdot)$ denotes a user simulation function that estimates the likelihood of user preference based on multi-view features $\mathbf{r}_{u,i}$ and reranker outputs. This simulation captures implicit user intent by aggregating behavior, collaborative, and semantic signals.
+
+Next, a reflection step evaluates the consistency between the reranker score and simulated preference:
+\begin{equation}
+\delta(u,i) = f_{\text{ref}}\big(s_1(u,i), \hat{r}(u,i)\big),
+\end{equation}
+where $f_{\text{ref}}(\cdot)$ denotes a reflection function that produces an adjustment term. This step encourages agreement between simulated user preference and ranking scores, while correcting inconsistencies across experts.
+
+The final refined score is computed as
+\begin{equation}
+s_{\text{final}}(u,i)
+=
+s_1(u,i)
++
+\gamma \, \delta(u,i),
+\end{equation}
+where $\gamma$ controls the strength of the reflection-based refinement. The final recommendation list is obtained by sorting candidates using $s_{\text{final}}(u,i)$:
+\begin{equation}
+\pi_u = \text{sort}_{i \in C_K(u)} \; s_{\text{final}}(u,i).
+\end{equation}
+
+This reflective user simulation enables iterative adjustment of ranking decisions by incorporating simulated user preference and cross-view consistency. The refinement module improves Top-$K$ accuracy while maintaining computational efficiency, as it operates only on a small candidate set.
+
+\subsection{Complexity Analysis}
+
+We analyze the computational complexity of MoERec, which consists of multi-view expert retrieval, MoE early fusion, fine-grained reranking, and reflective user simulation. Let $|\mathcal{I}|$ denote the number of items. The behavior-based, collaborative, and semantic experts retrieve top-$N_b$, $N_c$, and $N_m$ candidates, respectively. The merged candidate pool size is
+\begin{equation}
+N = |C_R| \le N_b + N_c + N_m.
+\end{equation}
+
+\paragraph{Multi-view experts.}
+Each expert retrieves candidates independently. With embedding-based retrieval, the cost is dominated by approximate nearest neighbor search:
+\begin{equation}
+O(\mathrm{ANN}(|\mathcal{I}|, d)),
+\end{equation}
+where $d$ is the embedding dimension. These operations can be performed efficiently using indexed search.
+
+\paragraph{MoE early fusion.}
+The MoE gating network computes fused scores for candidates in $C_R$:
+\begin{equation}
+s_0(u,i)=\sum_{k} g_k(u,i) s^{(k)}(u,i).
+\end{equation}
+This requires linear computation over the candidate pool:
+\begin{equation}
+O(N).
+\end{equation}
+Selecting the top-$M$ candidates adds
+\begin{equation}
+O(N \log M).
+\end{equation}
+
+\paragraph{Fine-grained reranker.}
+The feature-based reranker operates on the reduced set $C_M(u)$:
+\begin{equation}
+s_1(u,i)=f_r(\mathbf{r}_{u,i}), \quad i \in C_M(u),
+\end{equation}
+with complexity
+\begin{equation}
+O(M).
+\end{equation}
+Selecting Top-$K$ items requires
+\begin{equation}
+O(M \log K).
+\end{equation}
+
+\paragraph{Reflective user simulation.}
+The reflective user simulation module refines only the Top-$K$ candidates:
+\begin{equation}
+s_{\text{final}}(u,i)=s_1(u,i)+\gamma\delta(u,i),
+\end{equation}
+resulting in complexity
+\begin{equation}
+O(K).
+\end{equation}
+
+\paragraph{Overall complexity.}
+The total complexity of MoERec is
+\begin{equation}
+O\big(\mathrm{ANN}(|\mathcal{I}|, d) + N\log M + M\log K \big),
+\end{equation}
+where $K \ll M \ll N \ll |\mathcal{I}|$. Since the expensive operations occur only during candidate retrieval, and subsequent stages operate on progressively smaller sets, MoERec remains scalable for large-scale recommendation.
+
+\section{Experiments}
+
+\subsection{Experimental Setup}
+
+\subsubsection{Datasets}
+
+\subsubsection{Baselines}
+
+\subsubsection{Evaluation Metrics}
+
+\subsubsection{Implementation Details}
+
+\subsection{Overall Performance Comparison}
+
+\subsection{Ablation Study}
+
+\subsection{Effect of MoE Early Fusion}
+
+\subsection{Effect of Reflective User Simulation}
+
+\subsection{Efficiency Analysis}
+
+
+
+\section{Related Works}
+\subsection{Sequential recommendation}
+Sequential recommendation models aim to capture users' dynamic interests from interaction histories. Early neural approaches such as GRU4Rec~\cite{gru4rec} model session dynamics with recurrent networks, while later Transformer-based models improve long-range dependency modeling through self-attention. In particular, SASRec~\cite{sasrec} adaptively attends to relevant past interactions for next-item prediction, and BERT4Rec~\cite{bert4rec} further strengthens sequence modeling by using bidirectional Transformer encoders trained with a cloze-style objective. Although these methods are highly effective at modeling temporal intent, they primarily rely on behavior sequences and usually do not explicitly exploit collaborative relations or rich content semantics, which limits their robustness in sparse or cold-start settings.
+
+\subsection{Graph-based Collaborative recommendation}
+Another major line of work focus on collaborative recommendation over user---item graphs. NGCF~\cite{ngcf} incorporate high-order conectivity by propagating embeddings on the interaction graph. LightGCN~\cite{lightgcn} simplifies graph convolutioon to emphasize neighborhood aggregation and has become a strong graph collaborative filtering method. Self-supervised variants such as SGL~\cite{sgl} further improve representation robustness by constructing augmented graph views and maximizing agreement across them. These methods are effective at leveraging collaborative structure, but they mainly emphasize graph topology and shared preference propagation; they often overlook temporal recency and item-level semantic relevance.
+
+\subsection{Hybrid Recommendation}
+Hybrid recommendation combines collaborative signals with auxiliary views such as content, metadata, and multimodal semantics. Early work such as VBPR~\cite{vbpr} augments collaborative ranking with visual features, showing that side information can improve recommendation quality and cold-start generalization. Later multimodal methods such as MMGCN~\cite{mmgcn} integrate textual and visual modalities with user--item graphs to learn richer item representations. More recent approaches strengthen this line further: BM3~\cite{bm3} introduces a simple self-supervised multimodal framework without negative sampling, while LGMRec~\cite{lgmrec} explicitly models both local modality-aware interests and global graph-level dependencies. Although hybrid methods substantially improve representation quality, most of them still fuse heterogeneous signals mainly at the embedding or representation-learning stage, rather than performing adaptive expert fusion during candidate generation.
+
+\subsection{LLM-based and Generative Recommendation}
+Recent work has explored recommendation with LLMs. P5~\cite{p5} reformulates recommendation task as language processing and unifies multiple recommendation tasks in a text-to-text framework. TALLRec~\cite{tallrec} aligns general-purpose LLMs with recommendation via efficient tuning, while CLLM4Rec~\cite{cllm4rec} integrates collaborative ID information and language modeling more tightly to reduce the semantic gap between natural language and recommendation signals. Beyond direct prediction, LLMs are also used as rerankers. LLM4Rerank~\cite{llm4rerank} leverages LLM reasoning to integrate multiple reranking criteria under personalized constraints. While these method demonstrate the promise of langage models for recommendation, they only focus on their language-centric recommendation or post-hoc reranking, while overlook the abilities.
+
+\subsection{Agentic Recommendation}
+A newer direction studies agentic recommender systems. ARAG~\cite{arag} extends RAG-style recommendation with multiple specialized agents for user understanding, semantic matching, summarization, and item ranking. AFL~\cite{afl} further emphasizes the feedback loop between a recommendation agent and a user agent, showing that interactive refinemant can improve recommendation quality. At the evaluation level, AgentRecBench~\cite{agentrecbench} provides one of the first unified benchmarks for comparing classical and agentic personalized recommenders in interactive settings. These studies highlight the value of reasoning, interaction, and feedback in recommendation; however, they mainly center on LLM-driven decision and agent collaboraion, rather than adaptive early fusion over retrieval experts such as behavioral, collaborative, and semantic recommenders.
+
+\noindent\textbf{Our position.}
+In contrast to prior work, our framework is focus on adaptive early fusion of heterogeneous recommendation experts at the candidate generation stage, followed by cross-signal reranking and \todo{lightweight reflective refinement?}. This positioning makes our method distinct from sequence-only models, graph-only collaborative methods, hybrid representation-learning approaches, and recent LLM-based or agentic recommenders that operate primarily after candidate retrieval.
+
+\section{Conclusion}
+
+
+\begin{acks}
+To Robert, for the bagels and explaining CMYK and color spaces.
+\end{acks}
+
+%%
+%% The next two lines define the bibliography style to be used, and
+%% the bibliography file.
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{main}
+
+
+%%
+%% If your work has an appendix, this is the place to put it.
+\appendix
+
+\section{Appendix}
+
+
+\end{document}
+\endinput
+%%
+%% End of file `sample-sigconf.tex'.

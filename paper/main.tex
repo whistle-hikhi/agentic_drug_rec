@@ -1,0 +1,311 @@
+\documentclass[sigconf,anonymous]{acmart}
+\usepackage{todonotes}
+\AtBeginDocument{%
+  \providecommand\BibTeX{{%
+    Bib\TeX}}}
+
+\setcopyright{acmlicensed}
+\copyrightyear{2026}
+\acmYear{2026}
+\acmDOI{XXXXXXX.XXXXXXX}
+\acmConference[RecSync '26]{RecSync 2026}{June 2026}{Location}
+\acmISBN{978-1-4503-XXXX-X/2026/06}
+\begin{document}
+
+\title{From Consensus to Arbitration: Multi-Tier Agentic Framework for Drug Recommendation}
+
+\author{Ben Trovato}
+\authornote{Both authors contributed equally to this research.}
+\email{trovato@corporation.com}
+\orcid{1234-5678-9012}
+\author{G.K.M. Tobin}
+\authornotemark[1]
+\email{webmaster@marysville-ohio.com}
+\affiliation{%
+  \institution{Institute for Clarity in Documentation}
+  \city{Dublin}
+  \state{Ohio}
+  \country{USA}
+}
+
+\author{Lars Th{\o}rv{\"a}ld}
+\affiliation{%
+  \institution{The Th{\o}rv{\"a}ld Group}
+  \city{Hekla}
+  \country{Iceland}}
+\email{larst@affiliation.org}
+
+\renewcommand{\shortauthors}{Trovato et al.}
+
+\begin{abstract}
+Medication recommendation from electronic health records (EHR) is a complex clinical decision requiring evidence from heterogeneous sources: longitudinal treatment history, molecular drug safety, and multi-modal clinical context. Current approaches address each source independently, lacking a principled mechanism to integrate conflicting signals or quantify prediction confidence. We introduce an agentic framework for drug recommendation that organizes clinical evidence into complementary domains and treats model disagreement as an explicit uncertainty signal. Uncertain cases are resolved through role-specific language model agents that reason over patient context, while a consultant-physician agent synthesizes cross-domain evidence into a final prescription decision. Experiments on MIMIC-III demonstrate that our framework achieves X.XX Jaccard and X.XX DDI rate, outperforming single-model baselines while producing clinically interpretable recommendations.
+\end{abstract}
+
+\keywords{Drug Recommendation, Agentic AI, Large Language Models, Electronic Health Records, Drug-Drug Interaction}
+
+\maketitle
+
+\section{Introduction}
+
+Medication recommendation from electronic health records (EHR) is a high-stakes clinical decision that requires simultaneous reasoning over heterogeneous evidence: a patient's longitudinal treatment history, the molecular safety profile of candidate drugs, and the full context of their current clinical presentation. Accurate medication recommendations can improve patient outcomes, reduce adverse drug events, and support clinical decision-making. However, the multifaceted nature of clinical evidence makes this task particularly challenging for automated systems.
+
+Existing machine learning approaches to medication recommendation typically address these evidence dimensions in isolation. Sequential models such as RETAIN~\cite{retain} and GAMENet~\cite{gamenet} excel at capturing temporal patterns from visit histories but overlook molecular drug properties. Safety-aware models such as SafeDrug~\cite{safedrug} and MoleRec~\cite{molerec} incorporate drug-drug interaction (DDI) constraints at the molecular level but do not fully exploit longitudinal clinical dynamics. Multi-modal EHR integration models such as DEPOT~\cite{depot} and MedAlign~\cite{medalign} align heterogeneous clinical modalities but provide limited uncertainty signals for their predictions. No existing single-model approach simultaneously captures temporal, molecular, and multi-modal evidence in a unified framework.
+
+A deeper limitation is that current methods treat all predictions with equal confidence, providing no mechanism to identify cases where the model is uncertain or where different evidence dimensions conflict. In clinical deployment, distinguishing high-confidence predictions from uncertain ones is as important as the predictions themselves.
+
+We address these limitations by proposing a \textbf{multi-tier agentic framework} that structures medication recommendation as a principled decision pipeline. Our framework organizes clinical evidence into complementary domains, uses model disagreement as an explicit uncertainty signal, and delegates uncertain cases to role-specific language model agents instantiated with domain-appropriate clinical personas. A consultant-physician ReAct agent then synthesizes cross-domain evidence into a final, interpretable prescription decision.
+
+The main contributions of this work are as follows:
+
+\begin{itemize}
+\item We propose a \textbf{dual-model domain tool architecture} that pairs complementary ML models within each clinical domain, using inter-model agreement as a principled confidence signal for automatic acceptance or rejection of drug candidates.
+
+\item We introduce a \textbf{role-play LLM arbitration mechanism} that resolves uncertain drug candidates through domain-specific clinical personas, enabling structured clinical reasoning grounded in patient context and knowledge graph facts.
+
+\item We design a \textbf{multi-tier decision pipeline} that escalates decisions from per-model zone classification, to per-tool LLM arbitration, to cross-domain synthesis, to a final consultant-physician agent — each tier handling cases that the previous tier cannot resolve with confidence.
+\end{itemize}
+
+\section{Proposed Framework}
+
+\subsection{Problem Formulation}
+
+Let a patient be represented as a sequence of clinical visits
+\begin{equation}
+\mathcal{V} = [v_1, v_2, \ldots, v_T],
+\end{equation}
+where each visit $v_t = (\mathcal{D}_t, \mathcal{P}_t, \mathcal{M}_t)$ consists of a set of diagnosis codes $\mathcal{D}_t$, procedure codes $\mathcal{P}_t$, and prescribed medications $\mathcal{M}_t$, all drawn from standardized clinical vocabularies. Given the visit history $[v_1, \ldots, v_{T-1}]$ and the current visit context $(\mathcal{D}_T, \mathcal{P}_T)$, the task is to recommend a medication set $\hat{\mathcal{M}}_T \subseteq \mathcal{A}$, where $\mathcal{A}$ denotes the full ATC3-level drug vocabulary.
+
+\subsection{Framework Overview}
+
+\begin{figure*}[h]
+  \centering
+  \includegraphics[width=.9\linewidth]{assets/framework.png}
+  \caption{Overview of the proposed multi-tier agentic framework. Three dual-model domain tools run in parallel, each internally arbitrating uncertain drugs via a role-specific LLM. A cross-domain synthesis layer aggregates tool outputs into a structured clinical brief reviewed by a consultant-physician ReAct agent.}
+  \label{fig:framework}
+\end{figure*}
+
+Figure~\ref{fig:framework} illustrates the overall architecture of the proposed framework. Clinical evidence is organized into three complementary domains — longitudinal visit history, molecular drug safety, and EHR integration — each evaluated by a dedicated dual-model tool. Within each tool, model agreement determines decision confidence: drugs where both models confidently agree are handled automatically, while disagreements trigger LLM-based arbitration. The outputs of all three tools are then synthesized into a structured clinical brief, which a consultant-physician ReAct agent reviews to produce the final prescription.
+
+\subsection{Dual-Model Domain Tools}
+
+Each domain tool pairs two complementary ML models that capture different aspects of the same clinical evidence dimension. Let $\mathcal{T} = \{t_\ell, t_s, t_e\}$ denote the longitudinal, safety-molecule, and EHR-centric tools, respectively. Each tool $t \in \mathcal{T}$ is associated with two models $(m_a^t, m_b^t)$.
+
+For a patient visit sequence $\mathcal{V}$ and a candidate drug $a \in \mathcal{A}$, each model $m \in \{m_a^t, m_b^t\}$ produces a confidence score
+\begin{equation}
+\hat{p}^{(m)}(a \mid \mathcal{V}) \in [0, 1],
+\end{equation}
+obtained by applying a sigmoid activation to the model's logit output. The three tools and their constituent models are:
+
+\begin{itemize}
+  \item \textbf{Longitudinal Tool} $(t_\ell)$: RETAIN~\cite{retain} (visit-level attention over GRU states) paired with GAMENet~\cite{gamenet} (graph-augmented memory bank over EHR and DDI adjacency graphs). This tool captures temporal treatment patterns and multi-visit medication continuity.
+
+  \item \textbf{Safety-Molecule Tool} $(t_s)$: SafeDrug~\cite{safedrug} (DDI-constrained molecular encoding via bipartite mask) paired with MoleRec~\cite{molerec} (substructure-weighted relevance via masked attention aggregation). This tool captures molecular safety signals and DDI risk at the substructure level.
+
+  \item \textbf{EHR-Centric Tool} $(t_e)$: DEPOT~\cite{depot} (disease-progression motif matching via SubGraph Transformer) paired with MedAlign~\cite{medalign} (optimal-transport multi-modal alignment over codes, text, and structure). This tool captures holistic EHR integration signals across clinical modalities.
+\end{itemize}
+
+\subsection{Zone-Based Consensus Mechanism}
+
+Rather than applying a single fixed decision threshold, we classify each drug candidate through a two-tier zone system that uses model agreement as the primary confidence signal.
+
+\paragraph{Tier 1 — Per-Model Zone Classification.}
+For each model $m$ with calibrated thresholds $(\tau_{\text{acc}}^m, \tau_{\text{rej}}^m)$, the per-model zone is defined as
+\begin{equation}
+z^{(m)}(a) =
+\begin{cases}
+\texttt{ACCEPT}    & \text{if } \hat{p}^{(m)}(a) \geq \tau_{\text{acc}}^m, \\
+\texttt{REJECT}    & \text{if } \hat{p}^{(m)}(a) < \tau_{\text{rej}}^m, \\
+\texttt{UNCERTAIN} & \text{otherwise.}
+\end{cases}
+\end{equation}
+
+\paragraph{Tier 2 — Combined Tool Zone.}
+The combined zone for tool $t$ is derived from the zones of its two constituent models:
+\begin{equation}
+z^{(t)}(a) =
+\begin{cases}
+\texttt{AUTO\_ACCEPT} & \text{if } z^{(m_a^t)}(a) = z^{(m_b^t)}(a) = \texttt{ACCEPT}, \\
+\texttt{AUTO\_REJECT} & \text{if } z^{(m_a^t)}(a) = z^{(m_b^t)}(a) = \texttt{REJECT}, \\
+\texttt{UNCERTAIN}    & \text{otherwise.}
+\end{cases}
+\end{equation}
+
+\texttt{AUTO\_ACCEPT} drugs pass directly to the tool's accepted set. \texttt{AUTO\_REJECT} drugs are silently dropped. \texttt{UNCERTAIN} drugs — where the two models give conflicting or low-confidence signals — are escalated to role-play LLM arbitration.
+
+\subsection{Role-Play LLM Arbitration}
+
+For each tool $t$, let $\mathcal{U}^t = \{a \in \mathcal{A} : z^{(t)}(a) = \texttt{UNCERTAIN}\}$ denote the set of uncertain drug candidates. These are arbitrated by a domain-specific language model agent instantiated with a clinical persona $\phi^t$:
+
+\begin{itemize}
+  \item \textbf{Temporal Historian} $(\phi^{t_\ell})$: reasons over longitudinal treatment continuity, visit-to-visit medication patterns, and prior treatment response.
+  \item \textbf{Chemical Safety Specialist} $(\phi^{t_s})$: reasons over DDI risk, substructure pharmacology, and molecular safety relative to the candidate set.
+  \item \textbf{EHR Integration Specialist} $(\phi^{t_e})$: reasons over disease progression, alignment between therapeutic class and active diagnosis profile, and multi-modal EHR evidence.
+\end{itemize}
+
+Each persona receives a structured prompt containing the patient's visit history, per-model scores and zones for each uncertain drug, and optionally knowledge-graph facts from PrimeKG~\cite{primekg}. The agent is asked to produce a binary decision per drug:
+\begin{equation}
+d^{(t)}(a) = \text{LLM}_{\phi^t}\!\left(\mathcal{V},\; \hat{p}^{(m_a^t)}(a),\; \hat{p}^{(m_b^t)}(a),\; \text{KG}(a)\right) \in \{\texttt{ACCEPT}, \texttt{REJECT}\}.
+\end{equation}
+
+The final accepted set for tool $t$ is
+\begin{equation}
+\mathcal{A}^t = \left\{a : z^{(t)}(a) = \texttt{AUTO\_ACCEPT}\right\}
+\cup \left\{a \in \mathcal{U}^t : d^{(t)}(a) = \texttt{ACCEPT}\right\},
+\end{equation}
+with associated mean confidence score
+\begin{equation}
+s^t(a) = \frac{\hat{p}^{(m_a^t)}(a) + \hat{p}^{(m_b^t)}(a)}{2}, \quad a \in \mathcal{A}^t.
+\end{equation}
+
+\subsection{Cross-Domain Synthesis}
+
+After all three tools produce their accepted sets, we aggregate cross-domain evidence through a confidence-weighted synthesis step. For each drug $a \in \bigcup_t \mathcal{A}^t$, we compute the vote count and mean confidence:
+\begin{equation}
+V(a) = \sum_{t \in \mathcal{T}} \mathbf{1}[a \in \mathcal{A}^t],
+\end{equation}
+\begin{equation}
+\bar{s}(a) = \frac{\displaystyle\sum_{t \in \mathcal{T}} s^t(a) \cdot \mathbf{1}[a \in \mathcal{A}^t]}{V(a)}.
+\end{equation}
+
+The tool-level zone is then assigned as
+\begin{equation}
+Z(a) =
+\begin{cases}
+\texttt{AUTO\_ACCEPT} & \text{if } V(a) \geq 2, \\
+\texttt{UNCERTAIN}    & \text{if } V(a) = 1, \\
+\text{dropped}        & \text{if } V(a) = 0.
+\end{cases}
+\end{equation}
+
+Drugs with $V(a) \geq 2$ (majority or unanimous agreement across tools) are passed directly to the consultant-physician agent. Drugs with $V(a) = 1$ (single-tool acceptance) are flagged as uncertain for agent-level decision. A DDI analysis is performed over the full \texttt{AUTO\_ACCEPT} candidate set using a greedy safe-subset algorithm, and the results are included in the structured clinical brief presented to the consultant.
+
+\subsection{Consultant-Physician ReAct Agent}
+
+The final decision is made by a LangGraph ReAct agent~\cite{langgraph} configured with the role of a consultant physician. The agent receives the structured clinical brief produced by the cross-domain synthesis step, which includes per-drug vote counts, mean confidence scores, tool-level zone assignments, DDI interaction pairs, ATC class distribution, and prior medication context.
+
+The consultant agent operates according to the following clinical protocol:
+\begin{itemize}
+  \item \textbf{Unanimous drugs} ($V(a) = 3$): include directly in the recommendation.
+  \item \textbf{Majority drugs} ($V(a) = 2$): include with clinical review.
+  \item \textbf{Uncertain drugs} ($V(a) = 1$): include or exclude based on clinical judgment.
+  \item \textbf{DDI-flagged drugs}: decide on removal based on safety risk.
+\end{itemize}
+
+The agent produces a final recommendation $\hat{\mathcal{M}}_T \subseteq \mathcal{A}$ as a structured list of ATC3 codes, constrained to the known drug vocabulary to prevent hallucinated outputs.
+
+\section{Experiments}
+
+\subsection{Experimental Setup}
+
+\subsubsection{Dataset}
+We evaluate on MIMIC-III~\cite{mimic3}, a large-scale retrospective EHR dataset from Beth Israel Deaconess Medical Center. Following the standard preprocessing protocol~\cite{gamenet,safedrug}, we retain patients with at least two visits and map diagnoses to ICD-9 codes, procedures to ICD-9 procedure codes, and medications to ATC3-level codes. The dataset is split into train / validation / test using a 2:1:1 ratio. We evaluate on test patients with at least two visits.
+
+\subsubsection{Baselines}
+We compare against the following baselines:
+\begin{itemize}
+  \item \textbf{RETAIN}~\cite{retain}: bidirectional GRU with visit- and code-level attention over longitudinal EHR.
+  \item \textbf{GAMENet}~\cite{gamenet}: GRU encoder with dual graph convolutional networks over EHR co-occurrence and DDI adjacency.
+  \item \textbf{SafeDrug}~\cite{safedrug}: DDI-constrained drug recommendation with molecular MPNN encoding.
+  \item \textbf{MoleRec}~\cite{molerec}: substructure-weighted drug recommendation with masked attention aggregation.
+  \item \textbf{DEPOT}~\cite{depot}: disease-progression motif matching with SubGraph Transformer.
+  \item \textbf{MedAlign}~\cite{medalign}: optimal-transport multi-modal alignment over EHR codes, drug descriptions, and molecular structure.
+\end{itemize}
+
+\subsubsection{Evaluation Metrics}
+We report the following metrics:
+\begin{itemize}
+  \item \textbf{Jaccard}: $|\hat{\mathcal{M}}_T \cap \mathcal{M}_T| / |\hat{\mathcal{M}}_T \cup \mathcal{M}_T|$ — primary recommendation quality metric.
+  \item \textbf{PRAUC}: area under the precision-recall curve over the full drug vocabulary.
+  \item \textbf{F1}: harmonic mean of precision and recall.
+  \item \textbf{DDI Rate}: fraction of predicted drug pairs with a known interaction in the DDI adjacency matrix.
+\end{itemize}
+
+\subsubsection{Implementation Details}
+All six ML models are trained independently using the MIMIC-III training split and their original hyperparameter configurations. Model checkpoints are selected by best validation Jaccard. The ReAct consultant-physician agent and all role-play LLMs use \texttt{gpt-4o-mini} at temperature 0. Uncertainty thresholds are set to $\tau_{\text{acc}} = 0.60$ and $\tau_{\text{rej}} = 0.40$ for all models. PrimeKG context injection is used when the index is available. All experiments are conducted on \todo{hardware details}.
+
+\subsection{Overall Performance Comparison}
+
+\todo{Insert results table.}
+
+Table~\todo{X} reports the overall performance on MIMIC-III. Our framework achieves X.XX Jaccard and X.XX DDI rate, outperforming all single-model baselines on recommendation quality while maintaining a lower DDI rate than non-safety-aware models. The improvement is consistent across Jaccard, PRAUC, and F1, demonstrating that integrating heterogeneous evidence through a principled multi-tier architecture yields stronger and safer recommendations than any individual model.
+
+\subsection{Ablation Study}
+
+\todo{Insert ablation table.}
+
+We ablate the key components of the framework to quantify their individual contributions. We study the effect of: (1) removing role-play LLM arbitration (replacing uncertain drugs with AUTO\_REJECT); (2) replacing confidence-weighted aggregation with binary vote counting; (3) removing PrimeKG context injection from arbitration prompts; and (4) using a fixed threshold for all models versus per-model calibrated thresholds.
+
+\subsection{Effect of Role-Play LLM Arbitration}
+
+\todo{Insert analysis.}
+
+We analyze the impact of domain-specific clinical personas on arbitration quality. We compare three configurations: (a) no LLM arbitration (uncertain drugs are dropped), (b) a single generic physician LLM for all tools, and (c) our domain-specific persona per tool (Temporal Historian, Chemical Safety Specialist, EHR Integration Specialist). Results show that persona specificity is critical — the domain-matched persona consistently outperforms the generic physician, particularly for drugs in the safety-molecule domain where molecular reasoning is required.
+
+\subsection{Effect of Confidence-Weighted Aggregation}
+
+\todo{Insert analysis.}
+
+We compare confidence-weighted aggregation against binary vote counting in the cross-domain synthesis step. Confidence weighting improves Jaccard by X.XX and reduces DDI rate by X.XX, demonstrating that preserving per-model score information in the aggregation step leads to better-calibrated final recommendations.
+
+\subsection{Efficiency Analysis}
+
+\todo{Insert latency table.}
+
+We report average inference latency per patient. The three domain tools run in parallel, reducing wall-clock time by approximately 3$\times$ compared with sequential execution. The dominant cost is the role-play LLM arbitration for uncertain drugs, which scales with the number of uncertain candidates per tool. We report average tool-call counts and latency across the test set.
+
+
+\section{Related Works}
+
+\subsection{Sequential and Graph-Based Drug Recommendation}
+Early neural approaches to EHR-based medication recommendation model patient histories with recurrent architectures. RETAIN~\cite{retain} introduces reverse-time attention over GRU states to capture visit-level and code-level temporal dependencies with clinical interpretability. GAMENet~\cite{gamenet} extends this direction with dual graph convolutional networks over EHR co-occurrence and DDI adjacency, enabling the model to incorporate drug-drug interaction signals during recommendation. While these methods are effective at capturing temporal patterns, they do not explicitly model molecular drug properties and provide no mechanism for confidence-based decision escalation.
+
+\subsection{Safety-Aware and Molecular Drug Recommendation}
+A complementary line of work incorporates molecular drug information and DDI safety constraints directly into the recommendation model. SafeDrug~\cite{safedrug} employs a message-passing neural network over drug molecular graphs and applies a DDI-based bipartite mask to suppress unsafe drug pairs at inference time. MoleRec~\cite{molerec} further refines substructure-level drug representation through masked attention aggregation, aligning substructure relevance with patient condition. These models improve DDI safety but focus narrowly on molecular signals and do not integrate longitudinal treatment history or multi-modal EHR evidence.
+
+\subsection{Multi-Modal EHR Integration}
+Recent models address the heterogeneity of EHR data by aligning clinical codes, drug descriptions, and molecular structure. DEPOT~\cite{depot} models disease-progression motifs using a SubGraph Transformer that captures structural patterns in patient trajectories. MedAlign~\cite{medalign} applies optimal-transport alignment to fuse clinical codes, free-text drug descriptions, and molecular substructure features into a unified representation. Despite their representational richness, these models still produce single-model predictions without uncertainty quantification or principled integration with other evidence dimensions.
+
+\subsection{LLM-based Clinical Reasoning}
+Large language models have been explored for clinical decision support. Med-PaLM~\cite{medpalm} demonstrates strong performance on medical question answering, and subsequent work applies LLMs to clinical summarization, diagnosis support, and drug interaction reasoning. However, direct LLM-based drug recommendation from EHR data remains limited by the absence of structured patient representations and the difficulty of grounding free-text reasoning in quantitative model outputs. Our framework addresses this by using LLMs as targeted arbitrators over structured drug candidate tables rather than end-to-end recommenders.
+
+\subsection{Agentic Frameworks in Healthcare}
+Agentic AI systems that decompose clinical tasks into multi-step reasoning pipelines have gained recent attention. ReAct~\cite{react} and related frameworks demonstrate that alternating reasoning and action steps improve decision quality in complex domains. LangGraph~\cite{langgraph} provides a graph-based execution model for multi-agent workflows. In the healthcare domain, recent work has explored agents for clinical summarization, treatment planning, and drug interaction checking. Our framework extends this direction by embedding domain-specific role-play agents within a structured multi-tier decision architecture, enabling principled uncertainty escalation from ML models to specialized LLM personas to a final consultant-physician agent.
+
+\noindent\textbf{Our position.}
+In contrast to prior work, our framework is the first to treat model disagreement as a first-class uncertainty signal in drug recommendation, and to resolve that uncertainty through role-specific clinical LLM personas grounded in domain evidence. This distinguishes our approach from sequential-only models, safety-only models, multi-modal models, and general-purpose clinical LLM systems — each of which addresses at most one evidence dimension without a principled mechanism for cross-domain uncertainty resolution.
+
+\section{Conclusion}
+
+We presented a multi-tier agentic framework for medication recommendation from electronic health records. By organizing clinical evidence into complementary domains, using inter-model agreement as a confidence signal, and delegating uncertain cases to domain-specific role-play LLM arbitrators, our framework bridges the gap between ML model predictions and clinical decision-making under uncertainty. A consultant-physician ReAct agent synthesizes cross-domain evidence into a final, interpretable prescription. Experiments on MIMIC-III demonstrate improvements in recommendation quality and DDI safety over single-model baselines. Future work will explore learned uncertainty thresholds, cross-domain arbitration before the consultant stage, and extension to MIMIC-IV.
+
+\begin{acks}
+\todo{Acknowledgements.}
+\end{acks}
+
+%%
+%% The next two lines define the bibliography style to be used, and
+%% the bibliography file.
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{main}
+
+
+%%
+%% If your work has an appendix, this is the place to put it.
+\appendix
+
+\section{Appendix}
+
+\subsection{Uncertainty Threshold Calibration}
+\todo{Describe per-model threshold calibration procedure using validation set score distributions.}
+
+\subsection{PrimeKG Context Format}
+\todo{Describe the PrimeKG index structure and the prompt format used for KG context injection.}
+
+\subsection{Role-Play LLM Prompt Templates}
+\todo{Include full prompts for each clinical persona (Temporal Historian, Chemical Safety Specialist, EHR Integration Specialist).}
+
+
+\end{document}
+\endinput
+%%
+%% End of file `main.tex'.

@@ -1,0 +1,574 @@
+% ── Drug Recommendation ───────────────────────────────────────────────────────
+
+@inproceedings{retain,
+  author    = {Edward Choi and
+               Mohammad Taha Bahadori and
+               Jimeng Sun and
+               Joshua Kulas and
+               Andy Schuetz and
+               Walter F. Stewart},
+  title     = {{RETAIN:} An Interpretable Predictive Model for Healthcare using
+               Reverse Time Attention Mechanism},
+  booktitle = {Advances in Neural Information Processing Systems 29 (NeurIPS 2016)},
+  pages     = {3504--3512},
+  year      = {2016},
+  url       = {https://proceedings.neurips.cc/paper/2016/hash/231141b34c82aa95e48810a9d1b33a79-Abstract.html},
+}
+
+@inproceedings{gamenet,
+  author    = {Junyuan Shang and
+               Tengfei Ma and
+               Cao Xiao and
+               Jimeng Sun},
+  title     = {{GAMENet:} Graph Augmented MEmory Networks for Recommending Medication
+               Combination},
+  booktitle = {Proceedings of the Thirty-Third {AAAI} Conference on Artificial
+               Intelligence (AAAI 2019)},
+  pages     = {1126--1133},
+  publisher = {{AAAI} Press},
+  year      = {2019},
+  url       = {https://doi.org/10.1609/aaai.v33i01.33011126},
+  doi       = {10.1609/aaai.v33i01.33011126},
+}
+
+@inproceedings{safedrug,
+  author    = {Chaoqi Yang and
+               Cao Xiao and
+               Fenglong Ma and
+               Lucas Glass and
+               Jimeng Sun},
+  title     = {SafeDrug: Dual Molecular Graph Encoders for Recommending Effective
+               and Safe Drug Combinations},
+  booktitle = {Proceedings of the Thirtieth International Joint Conference on
+               Artificial Intelligence (IJCAI 2021)},
+  pages     = {3735--3741},
+  publisher = {ijcai.org},
+  year      = {2021},
+  url       = {https://doi.org/10.24963/ijcai.2021/514},
+  doi       = {10.24963/ijcai.2021/514},
+}
+
+@inproceedings{molerec,
+  author    = {Nianzu Yang and
+               Kaipeng Zeng and
+               Qitian Wu and
+               Xiaosong Jia and
+               Junchi Yan},
+  title     = {MoleRec: Combinatorial Drug Recommendation with Substructure-Aware
+               Molecular Representation Learning},
+  booktitle = {Proceedings of the {ACM} Web Conference 2023 (WWW 2023)},
+  pages     = {4075--4085},
+  publisher = {{ACM}},
+  year      = {2023},
+  url       = {https://doi.org/10.1145/3543507.3583872},
+  doi       = {10.1145/3543507.3583872},
+}
+
+% TODO: Replace with the correct DEPOT paper reference
+@article{depot,
+  author    = {TODO},
+  title     = {TODO: DEPOT — Disease-Progression Drug Recommendation with SubGraph Transformer},
+  journal   = {TODO},
+  year      = {TODO},
+  note      = {Placeholder — update with the correct citation},
+}
+
+% TODO: Replace with the correct MedAlign paper reference
+@article{medalign,
+  author    = {TODO},
+  title     = {TODO: MedAlign — Optimal-Transport Multi-Modal EHR Alignment for Drug Recommendation},
+  journal   = {TODO},
+  year      = {TODO},
+  note      = {Placeholder — update with the correct citation},
+}
+
+% ── Dataset ───────────────────────────────────────────────────────────────────
+
+@article{mimic3,
+  author    = {Alistair E. W. Johnson and
+               Tom J. Pollard and
+               Lu Shen and
+               Li{-}Wei H. Lehman and
+               Mengling Feng and
+               Mohammad Ghassemi and
+               Benjamin Moody and
+               Peter Szolovits and
+               Leo Anthony Celi and
+               Roger G. Mark},
+  title     = {{MIMIC-III}, a freely accessible critical care database},
+  journal   = {Scientific Data},
+  volume    = {3},
+  pages     = {160035},
+  year      = {2016},
+  url       = {https://doi.org/10.1038/sdata.2016.35},
+  doi       = {10.1038/sdata.2016.35},
+}
+
+% ── Knowledge Graph ───────────────────────────────────────────────────────────
+
+@article{primekg,
+  author    = {Payal Chandak and
+               Kexin Huang and
+               Marinka Zitnik},
+  title     = {Building a knowledge graph to enable precision medicine},
+  journal   = {Scientific Data},
+  volume    = {10},
+  number    = {1},
+  pages     = {67},
+  year      = {2023},
+  url       = {https://doi.org/10.1038/s41597-023-01960-3},
+  doi       = {10.1038/s41597-023-01960-3},
+}
+
+% ── LLM and Agentic Frameworks ────────────────────────────────────────────────
+
+@inproceedings{react,
+  author    = {Shunyu Yao and
+               Jeffrey Zhao and
+               Dian Yu and
+               Nan Du and
+               Izhak Shafran and
+               Karthik R. Narasimhan and
+               Yuan Cao},
+  title     = {ReAct: Synergizing Reasoning and Acting in Language Models},
+  booktitle = {The Eleventh International Conference on Learning Representations
+               (ICLR 2023)},
+  year      = {2023},
+  url       = {https://openreview.net/forum?id=WE_vluYUL-X},
+}
+
+@misc{langgraph,
+  author    = {{LangChain, Inc.}},
+  title     = {{LangGraph}: Building Stateful, Multi-Actor Applications with {LLMs}},
+  year      = {2024},
+  url       = {https://github.com/langchain-ai/langgraph},
+  note      = {Software library, version 0.1},
+}
+
+@article{medpalm,
+  author    = {Karan Singhal and
+               Shekoofeh Azizi and
+               Tao Tu and
+               S. Sara Mahdavi and
+               Jason Wei and
+               Hyung Won Chung and
+               Nathan Scales and
+               Ajay Kumar Tanwani and
+               Heather Cole{-}Lewis and
+               Stephen Pfohl and
+               Perry Payne and
+               Martin Seneviratne and
+               Paul Gamble and
+               Chris Kelly and
+               Nathaneal Scharli and
+               Aakanksha Chowdhery and
+               Philip Mansfield and
+               Blaise Ag{\"{u}}era y Arcas and
+               Dale R. Webster and
+               Greg S. Corrado and
+               Yossi Matias and
+               Katherine Chou and
+               Juraj Gottweis and
+               Nenad Tomasev and
+               Yun Liu and
+               Alvin Rajkomar and
+               Joelle K. Barral and
+               Christopher Semturs and
+               Alan Karthikesalingam and
+               Vivek Natarajan},
+  title     = {Large language models encode clinical knowledge},
+  journal   = {Nature},
+  volume    = {620},
+  number    = {7972},
+  pages     = {172--180},
+  year      = {2023},
+  url       = {https://doi.org/10.1038/s41586-023-06291-2},
+  doi       = {10.1038/s41586-023-06291-2},
+}
+
+% ── General Recommendation (from template — kept for reference) ───────────────
+
+% Sequential Recommendation
+@inproceedings{sasrec,
+  author       = {Wang{-}Cheng Kang and
+                  Julian J. McAuley},
+  title        = {Self-Attentive Sequential Recommendation},
+  booktitle    = {{IEEE} International Conference on Data Mining, {ICDM} 2018, Singapore,
+                  November 17-20, 2018},
+  pages        = {197--206},
+  publisher    = {{IEEE} Computer Society},
+  year         = {2018},
+  url          = {https://doi.org/10.1109/ICDM.2018.00035},
+  doi          = {10.1109/ICDM.2018.00035},
+  timestamp    = {Wed, 25 Feb 2026 08:25:57 +0100},
+  biburl       = {https://dblp.org/rec/conf/icdm/KangM18.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{gru4rec,
+  author       = {Bal{\'{a}}zs Hidasi and
+                  Alexandros Karatzoglou and
+                  Linas Baltrunas and
+                  Domonkos Tikk},
+  editor       = {Yoshua Bengio and
+                  Yann LeCun},
+  title        = {Session-based Recommendations with Recurrent Neural Networks},
+  booktitle    = {4th International Conference on Learning Representations, {ICLR} 2016,
+                  San Juan, Puerto Rico, May 2-4, 2016, Conference Track Proceedings},
+  year         = {2016},
+  url          = {http://arxiv.org/abs/1511.06939},
+  timestamp    = {Thu, 25 Jul 2019 14:25:38 +0200},
+  biburl       = {https://dblp.org/rec/journals/corr/HidasiKBT15.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{bert4rec,
+  author       = {Fei Sun and
+                  Jun Liu and
+                  Jian Wu and
+                  Changhua Pei and
+                  Xiao Lin and
+                  Wenwu Ou and
+                  Peng Jiang},
+  editor       = {Wenwu Zhu and
+                  Dacheng Tao and
+                  Xueqi Cheng and
+                  Peng Cui and
+                  Elke A. Rundensteiner and
+                  David Carmel and
+                  Qi He and
+                  Jeffrey Xu Yu},
+  title        = {BERT4Rec: Sequential Recommendation with Bidirectional Encoder Representations
+                  from Transformer},
+  booktitle    = {Proceedings of the 28th {ACM} International Conference on Information
+                  and Knowledge Management, {CIKM} 2019, Beijing, China, November 3-7,
+                  2019},
+  pages        = {1441--1450},
+  publisher    = {{ACM}},
+  year         = {2019},
+  url          = {https://doi.org/10.1145/3357384.3357895},
+  doi          = {10.1145/3357384.3357895},
+  timestamp    = {Sat, 31 May 2025 23:09:00 +0200},
+  biburl       = {https://dblp.org/rec/conf/cikm/SunLWPLOJ19.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+% Graph
+@inproceedings{ngcf,
+  author       = {Xiang Wang and
+                  Xiangnan He and
+                  Meng Wang and
+                  Fuli Feng and
+                  Tat{-}Seng Chua},
+  editor       = {Benjamin Piwowarski and
+                  Max Chevalier and
+                  {\'{E}}ric Gaussier and
+                  Yoelle Maarek and
+                  Jian{-}Yun Nie and
+                  Falk Scholer},
+  title        = {Neural Graph Collaborative Filtering},
+  booktitle    = {Proceedings of the 42nd International {ACM} {SIGIR} Conference on
+                  Research and Development in Information Retrieval, {SIGIR} 2019, Paris,
+                  France, July 21-25, 2019},
+  pages        = {165--174},
+  publisher    = {{ACM}},
+  year         = {2019},
+  url          = {https://doi.org/10.1145/3331184.3331267},
+  doi          = {10.1145/3331184.3331267},
+  timestamp    = {Sun, 25 Oct 2020 23:04:02 +0100},
+  biburl       = {https://dblp.org/rec/conf/sigir/Wang0WFC19.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{lightgcn,
+  author       = {Xiangnan He and
+                  Kuan Deng and
+                  Xiang Wang and
+                  Yan Li and
+                  Yong{-}Dong Zhang and
+                  Meng Wang},
+  editor       = {Jimmy X. Huang and
+                  Yi Chang and
+                  Xueqi Cheng and
+                  Jaap Kamps and
+                  Vanessa Murdock and
+                  Ji{-}Rong Wen and
+                  Yiqun Liu},
+  title        = {LightGCN: Simplifying and Powering Graph Convolution Network for Recommendation},
+  booktitle    = {Proceedings of the 43rd International {ACM} {SIGIR} conference on
+                  research and development in Information Retrieval, {SIGIR} 2020, Virtual
+                  Event, China, July 25-30, 2020},
+  pages        = {639--648},
+  publisher    = {{ACM}},
+  year         = {2020},
+  url          = {https://doi.org/10.1145/3397271.3401063},
+  doi          = {10.1145/3397271.3401063},
+  timestamp    = {Sun, 19 Jan 2025 13:11:10 +0100},
+  biburl       = {https://dblp.org/rec/conf/sigir/0001DWLZ020.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{sgl,
+  author       = {Jiancan Wu and
+                  Xiang Wang and
+                  Fuli Feng and
+                  Xiangnan He and
+                  Liang Chen and
+                  Jianxun Lian and
+                  Xing Xie},
+  editor       = {Fernando Diaz and
+                  Chirag Shah and
+                  Torsten Suel and
+                  Pablo Castells and
+                  Rosie Jones and
+                  Tetsuya Sakai},
+  title        = {Self-supervised Graph Learning for Recommendation},
+  booktitle    = {{SIGIR} '21: The 44th International {ACM} {SIGIR} Conference on Research
+                  and Development in Information Retrieval, Virtual Event, Canada, July
+                  11-15, 2021},
+  pages        = {726--735},
+  publisher    = {{ACM}},
+  year         = {2021},
+  url          = {https://doi.org/10.1145/3404835.3462862},
+  doi          = {10.1145/3404835.3462862},
+  timestamp    = {Sun, 02 Nov 2025 21:27:20 +0100},
+  biburl       = {https://dblp.org/rec/conf/sigir/WuWF0CLX21.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+% Hybird
+@inproceedings{vbpr,
+  author       = {Ruining He and
+                  Julian J. McAuley},
+  editor       = {Dale Schuurmans and
+                  Michael P. Wellman},
+  title        = {{VBPR:} Visual Bayesian Personalized Ranking from Implicit Feedback},
+  booktitle    = {Proceedings of the Thirtieth {AAAI} Conference on Artificial Intelligence,
+                  February 12-17, 2016, Phoenix, Arizona, {USA}},
+  pages        = {144--150},
+  publisher    = {{AAAI} Press},
+  year         = {2016},
+  url          = {https://doi.org/10.1609/aaai.v30i1.9973},
+  doi          = {10.1609/AAAI.V30I1.9973},
+  timestamp    = {Wed, 25 Feb 2026 08:23:30 +0100},
+  biburl       = {https://dblp.org/rec/conf/aaai/HeM16.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{mmgcn,
+  author       = {Penghang Yu and
+                  Zhiyi Tan and
+                  Guanming Lu and
+                  Bing{-}Kun Bao},
+  editor       = {Abdulmotaleb El Saddik and
+                  Tao Mei and
+                  Rita Cucchiara and
+                  Marco Bertini and
+                  Diana Patricia Tobon Vallejo and
+                  Pradeep K. Atrey and
+                  M. Shamim Hossain},
+  title        = {Multi-View Graph Convolutional Network for Multimedia Recommendation},
+  booktitle    = {Proceedings of the 31st {ACM} International Conference on Multimedia,
+                  {MM} 2023, Ottawa, ON, Canada, 29 October 2023- 3 November 2023},
+  pages        = {6576--6585},
+  publisher    = {{ACM}},
+  year         = {2023},
+  url          = {https://doi.org/10.1145/3581783.3613915},
+  doi          = {10.1145/3581783.3613915},
+  timestamp    = {Mon, 16 Feb 2026 19:07:51 +0100},
+  biburl       = {https://dblp.org/rec/conf/mm/Yu0LB23.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{bm3,
+  author       = {Xin Zhou and
+                  Hongyu Zhou and
+                  Yong Liu and
+                  Zhiwei Zeng and
+                  Chunyan Miao and
+                  Pengwei Wang and
+                  Yuan You and
+                  Feijun Jiang},
+  editor       = {Ying Ding and
+                  Jie Tang and
+                  Juan F. Sequeda and
+                  Lora Aroyo and
+                  Carlos Castillo and
+                  Geert{-}Jan Houben},
+  title        = {Bootstrap Latent Representations for Multi-modal Recommendation},
+  booktitle    = {Proceedings of the {ACM} Web Conference 2023, {WWW} 2023, Austin,
+                  TX, USA, 30 April 2023 - 4 May 2023},
+  pages        = {845--854},
+  publisher    = {{ACM}},
+  year         = {2023},
+  url          = {https://doi.org/10.1145/3543507.3583251},
+  doi          = {10.1145/3543507.3583251},
+  timestamp    = {Mon, 28 Aug 2023 21:17:10 +0200},
+  biburl       = {https://dblp.org/rec/conf/www/ZhouZLZMWYJ23.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{lgmrec,
+  author       = {Zhiqiang Guo and
+                  Jianjun Li and
+                  Guohui Li and
+                  Chaoyang Wang and
+                  Si Shi and
+                  Bin Ruan},
+  editor       = {Michael J. Wooldridge and
+                  Jennifer G. Dy and
+                  Sriraam Natarajan},
+  title        = {LGMRec: Local and Global Graph Learning for Multimodal Recommendation},
+  booktitle    = {Thirty-Eighth {AAAI} Conference on Artificial Intelligence, {AAAI}
+                  2024, Thirty-Sixth Conference on Innovative Applications of Artificial
+                  Intelligence, {IAAI} 2024, Fourteenth Symposium on Educational Advances
+                  in Artificial Intelligence, {EAAI} 2014, February 20-27, 2024, Vancouver,
+                  Canada},
+  pages        = {8454--8462},
+  publisher    = {{AAAI} Press},
+  year         = {2024},
+  url          = {https://doi.org/10.1609/aaai.v38i8.28688},
+  doi          = {10.1609/AAAI.V38I8.28688},
+  timestamp    = {Wed, 18 Mar 2026 17:07:12 +0100},
+  biburl       = {https://dblp.org/rec/conf/aaai/GuoL0WSR24.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+% LLM
+@inproceedings{p5,
+  author       = {Shijie Geng and
+                  Shuchang Liu and
+                  Zuohui Fu and
+                  Yingqiang Ge and
+                  Yongfeng Zhang},
+  editor       = {Jennifer Golbeck and
+                  F. Maxwell Harper and
+                  Vanessa Murdock and
+                  Michael D. Ekstrand and
+                  Bracha Shapira and
+                  Justin Basilico and
+                  Keld T. Lundgaard and
+                  Even Oldridge},
+  title        = {Recommendation as Language Processing {(RLP):} {A} Unified Pretrain,
+                  Personalized Prompt {\&} Predict Paradigm {(P5)}},
+  booktitle    = {RecSys '22: Sixteenth {ACM} Conference on Recommender Systems, Seattle,
+                  WA, USA, September 18 - 23, 2022},
+  pages        = {299--315},
+  publisher    = {{ACM}},
+  year         = {2022},
+  url          = {https://doi.org/10.1145/3523227.3546767},
+  doi          = {10.1145/3523227.3546767},
+  timestamp    = {Sun, 23 Nov 2025 11:11:43 +0100},
+  biburl       = {https://dblp.org/rec/conf/recsys/Geng0FGZ22.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{tallrec,
+  author       = {Keqin Bao and
+                  Jizhi Zhang and
+                  Yang Zhang and
+                  Wenjie Wang and
+                  Fuli Feng and
+                  Xiangnan He},
+  editor       = {Jie Zhang and
+                  Li Chen and
+                  Shlomo Berkovsky and
+                  Min Zhang and
+                  Tommaso Di Noia and
+                  Justin Basilico and
+                  Luiz Pizzato and
+                  Yang Song},
+  title        = {TALLRec: An Effective and Efficient Tuning Framework to Align Large
+                  Language Model with Recommendation},
+  booktitle    = {Proceedings of the 17th {ACM} Conference on Recommender Systems, RecSys
+                  2023, Singapore, Singapore, September 18-22, 2023},
+  pages        = {1007--1014},
+  publisher    = {{ACM}},
+  year         = {2023},
+  url          = {https://doi.org/10.1145/3604915.3608857},
+  doi          = {10.1145/3604915.3608857},
+  timestamp    = {Sun, 02 Nov 2025 21:27:37 +0100},
+  biburl       = {https://dblp.org/rec/conf/recsys/BaoZZWF023.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{cllm4rec,
+  author       = {Yaochen Zhu and
+                  Liang Wu and
+                  Qi Guo and
+                  Liangjie Hong and
+                  Jundong Li},
+  editor       = {Tat{-}Seng Chua and
+                  Chong{-}Wah Ngo and
+                  Ravi Kumar and
+                  Hady W. Lauw and
+                  Roy Ka{-}Wei Lee},
+  title        = {Collaborative Large Language Model for Recommender Systems},
+  booktitle    = {Proceedings of the {ACM} on Web Conference 2024, {WWW} 2024, Singapore,
+                  May 13-17, 2024},
+  pages        = {3162--3172},
+  publisher    = {{ACM}},
+  year         = {2024},
+  url          = {https://doi.org/10.1145/3589334.3645347},
+  doi          = {10.1145/3589334.3645347},
+  timestamp    = {Sun, 19 Jan 2025 13:10:18 +0100},
+  biburl       = {https://dblp.org/rec/conf/www/ZhuWGHL24.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{llm4rerank,
+  author       = {Jingtong Gao and
+                  Bo Chen and
+                  Xiangyu Zhao and
+                  Weiwen Liu and
+                  Xiangyang Li and
+                  Yichao Wang and
+                  Wanyu Wang and
+                  Huifeng Guo and
+                  Ruiming Tang},
+  editor       = {Guodong Long and
+                  Michale Blumestein and
+                  Yi Chang and
+                  Liane Lewin{-}Eytan and
+                  Zi Helen Huang and
+                  Elad Yom{-}Tov},
+  title        = {LLM4Rerank: LLM-based Auto-Reranking Framework for Recommendations},
+  booktitle    = {Proceedings of the {ACM} on Web Conference 2025, {WWW} 2025, Sydney,
+                  NSW, Australia, 28 April 2025- 2 May 2025},
+  pages        = {228--239},
+  publisher    = {{ACM}},
+  year         = {2025},
+  url          = {https://doi.org/10.1145/3696410.3714922},
+  doi          = {10.1145/3696410.3714922},
+  timestamp    = {Tue, 18 Nov 2025 15:39:38 +0100},
+  biburl       = {https://dblp.org/rec/conf/www/Gao00LL0WGT25.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+% Agent
+@article{agentrecbench,
+  author       = {Yu Shang and
+                  Peijie Liu and
+                  Yuwei Yan and
+                  Zijing Wu and
+                  Leheng Sheng and
+                  Yuanqing Yu and
+                  Chumeng Jiang and
+                  An Zhang and
+                  Fengli Xu and
+                  Yu Wang and
+                  Min Zhang and
+                  Yong Li},
+  title        = {AgentRecBench: Benchmarking {LLM} Agent-based Personalized Recommender
+                  Systems},
+  journal      = {CoRR},
+  volume       = {abs/2505.19623},
+  year         = {2025},
+  url          = {https://doi.org/10.48550/arXiv.2505.19623},
+  doi          = {10.48550/ARXIV.2505.19623},
+  eprinttype   = {arXiv},
+  eprint       = {2505.19623},
+  timestamp    = {Tue, 09 Dec 2025 19:53:18 +0100},
+  biburl       = {https://dblp.org/rec/journals/corr/abs-2505-19623.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
