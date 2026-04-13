@@ -161,6 +161,7 @@ def _call_roleplay_llm(
     patient_context: str,
     llm_model: str,
     patient_diag_names: Optional[list[str]] = None,
+    accepted_drugs: Optional[list[str]] = None,
 ) -> dict[str, str]:             # {drug: "ACCEPT" | "REJECT"}
     if not uncertain_items:
         return {}
@@ -182,23 +183,46 @@ def _call_roleplay_llm(
         s = get_drug_summary(drug)
         return f"    KG: {s}" if s else ""
 
+    # DDI flags: which uncertain drugs conflict with the already-accepted set?
+    ddi_flags: dict[str, str] = {}
+    ddi_section = ""
+    if accepted_drugs:
+        combined = accepted_drugs + uncertain_codes
+        ddi_result = check_ddi(combined)
+        accepted_set = set(accepted_drugs)
+        uncertain_set = set(uncertain_codes)
+        for pair in ddi_result["ddi_pairs"]:
+            a, b = pair[0], pair[1]
+            if a in accepted_set and b in uncertain_set:
+                ddi_flags[b] = ddi_flags.get(b, "") + f"{drug_label(a)} "
+            elif b in accepted_set and a in uncertain_set:
+                ddi_flags[a] = ddi_flags.get(a, "") + f"{drug_label(b)} "
+        if ddi_flags:
+            ddi_section = (
+                "\nNOTE: Some uncertain drugs have DDI conflicts with already-accepted drugs "
+                "(marked [DDI] in table). This is a strong signal against acceptance.\n"
+            )
+
     header = (
         f"{'#':<4} {'Drug (ATC3 code)':<44} "
-        f"{model_a:>10} {model_b:>10}  Zone_A    Zone_B"
+        f"{model_a:>10} {model_b:>10}  Zone_A    Zone_B    DDI_conflicts"
     )
     rows = []
     for idx, (drug, sa, sb, ma, mb, za, zb) in enumerate(uncertain_items, 1):
-        row  = (f"{idx:<4} {drug_label(drug):<44} "
-                f"{sa:>10.3f} {sb:>10.3f}  {za:<9} {zb}")
+        ddi_note = ddi_flags.get(drug, "")
+        row = (f"{idx:<4} {drug_label(drug):<44} "
+               f"{sa:>10.3f} {sb:>10.3f}  {za:<9} {zb:<9} "
+               f"{'[DDI: ' + ddi_note.strip() + ']' if ddi_note else '—'}")
         hint = _kg_hint(drug)
         rows.append(row + ("\n" + hint if hint else ""))
-    table = "\n".join([header, "─" * 90] + rows)
+    table = "\n".join([header, "─" * 110] + rows)
 
     kg_section = f"\n{kg_context}\n" if kg_context else ""
 
     user_msg = (
         f"{patient_context}\n"
         f"{kg_section}"
+        f"{ddi_section}"
         "── Uncertain Drug Candidates ──────────────────────────────────────────────────\n"
         f"{table}\n\n"
         "For EACH numbered drug above, respond on ONE line:\n"
@@ -310,9 +334,11 @@ def _phase4_impl(
             flush=True,
         )
         patient_ctx, diag_names = _build_patient_context(visits)
+        accepted_names = [drug for drug, _sa, _sb in auto_accept]
         llm_decisions = _call_roleplay_llm(
             persona, uncertain, patient_ctx, cfg.llm_model,
             patient_diag_names=diag_names,
+            accepted_drugs=accepted_names,
         )
 
     llm_accepted = [drug for drug, *_ in uncertain if llm_decisions.get(drug) == "ACCEPT"]
@@ -466,17 +492,111 @@ def p4_ehr_centric_tool(patient_id: str) -> str:
     )
 
 
+def _cross_domain_arbitration(
+    uncertain_drugs: list[str],
+    tool_scores: dict,            # {tool_name: {drug: score}}
+    visits: list,
+    llm_model: str,
+) -> dict[str, str]:              # {drug: "ACCEPT" | "REJECT"}
+    """Cross-domain LLM arbitration for split-vote (1-of-3 tools) drugs.
+
+    The LLM receives all three domain signals simultaneously — the key
+    difference from per-tool Role-Play arbitration which is domain-isolated.
+    """
+    if not uncertain_drugs:
+        return {}
+
+    from langchain_openai import ChatOpenAI
+
+    tool_order = ["longitudinal", "safety_molecule", "ehr_centric"]
+    patient_ctx, _ = _build_patient_context(visits)
+
+    header = (
+        f"{'#':<4} {'Drug (ATC3 code)':<44} "
+        f"{'Long':>7}  {'Safety':>7}  {'EHR':>7}  Accepted_by"
+    )
+    rows = []
+    for idx, drug in enumerate(uncertain_drugs, 1):
+        l = tool_scores.get("longitudinal",    {}).get(drug)
+        s = tool_scores.get("safety_molecule", {}).get(drug)
+        e = tool_scores.get("ehr_centric",     {}).get(drug)
+        l_str = f"{l:>7.3f}" if l is not None else f"{'—':>7}"
+        s_str = f"{s:>7.3f}" if s is not None else f"{'—':>7}"
+        e_str = f"{e:>7.3f}" if e is not None else f"{'—':>7}"
+        accepting = [t for t in tool_order if drug in tool_scores.get(t, {})]
+        votes_str = ", ".join(accepting)
+        rows.append(
+            f"{idx:<4} {drug_label(drug):<44} "
+            f"{l_str}  {s_str}  {e_str}  [{votes_str}]"
+        )
+
+    table = "\n".join([header, "─" * 100] + rows)
+
+    system_msg = """\
+You are a cross-domain clinical arbitration panel. Three specialist AI tools have
+evaluated a patient's drug candidates:
+  - Longitudinal (RETAIN + GAMENet): visit history and medication continuity
+  - Safety/Molecule (SafeDrug + MoleRec): DDI risk and molecular structure
+  - EHR-Centric (DEPOT + MedAlign): disease progression and EHR alignment
+
+The drugs below each received exactly ONE tool vote — one specialist accepted
+them while the other two did not include them. You see all three domain signals
+simultaneously, enabling a globally-informed decision.
+
+For each drug, consider:
+1. The magnitude and clinical domain of the single accepting tool's score
+2. Whether the accepting domain is most clinically relevant for this drug class
+3. Whether the absence of the other two signals is a meaningful rejection signal
+4. Cross-domain coherence: does the single signal align with the patient's profile?"""
+
+    user_msg = (
+        f"{patient_ctx}\n\n"
+        "── Split-Vote Drugs (1 of 3 domain tools accepted each) ──────────────────────\n"
+        f"{table}\n\n"
+        "Columns: Long=longitudinal score, Safety=safety/molecule score, "
+        "EHR=EHR-centric score. '—' means that domain tool did not accept this drug.\n\n"
+        "For EACH numbered drug above, respond on ONE line:\n"
+        "  <number>. ACCEPT | <brief cross-domain reason>\n"
+        "  <number>. REJECT | <brief cross-domain reason>\n\n"
+        "Respond for ALL drugs. Use only ACCEPT or REJECT."
+    )
+
+    llm = ChatOpenAI(
+        model=llm_model,
+        temperature=0,
+        api_key=os.environ.get("OPENAI_API_KEY"),
+    )
+    response = llm.invoke([
+        {"role": "system", "content": system_msg},
+        {"role": "user",   "content": user_msg},
+    ])
+
+    decisions: dict[str, str] = {}
+    for line in response.content.splitlines():
+        m = re.match(r"^(\d+)\.\s+(ACCEPT|REJECT)", line.strip(), re.IGNORECASE)
+        if m:
+            i_zero   = int(m.group(1)) - 1
+            decision = m.group(2).upper()
+            if 0 <= i_zero < len(uncertain_drugs):
+                decisions[uncertain_drugs[i_zero]] = decision
+
+    for drug in uncertain_drugs:
+        decisions.setdefault(drug, "REJECT")   # conservative default
+
+    return decisions
+
+
 @tool
 def p4_summarize_tool(patient_id: str) -> str:
     """Summarise all three Phase 4 tool results for the final consultant-physician.
 
     Aggregates accepted drug sets from longitudinal, safety_molecule, and
-    ehr_centric tools, computing:
-      - Vote counts (how many tools accepted each drug)
-      - Mean confidence score across accepting tools
-      - DDI analysis for the full candidate set
+    ehr_centric tools, then performs cross-domain synthesis:
+      - AUTO_ACCEPT: drugs agreed by >=2 tools → pass directly
+      - Split-vote (1 tool): sent to cross-domain LLM that sees all three
+        domain signals simultaneously (Longitudinal + Safety + EHR)
+      - DDI analysis on the final predicted set
       - ATC class distribution
-      - Continuation / new / re-introduction status
 
     Call AFTER p4_longitudinal_tool, p4_safety_molecule_tool, p4_ehr_centric_tool.
 
@@ -484,7 +604,7 @@ def p4_summarize_tool(patient_id: str) -> str:
         patient_id: patient identifier
 
     Returns:
-        Structured multi-tool summary with vote counts, DDI, and ATC breakdown.
+        Structured multi-tool summary with cross-domain synthesis, DDI, and ATC breakdown.
     """
     tool_scores = _phase4_results.get(patient_id, {})
     if not tool_scores:
@@ -522,9 +642,25 @@ def p4_summarize_tool(patient_id: str) -> str:
         [d for d in all_drugs if vote_count[d] == 1],
         key=lambda d: -mean_score[d],
     )
-    predicted = auto_accepted
 
-    # DDI check on auto-accepted drugs
+    # Cross-domain synthesis: arbitrate split-vote drugs with global LLM view
+    cfg = get_config()
+    cross_decisions: dict[str, str] = {}
+    if uncertain:
+        print(
+            f"  [p4_summarize] cross-domain arbitration for {len(uncertain)} "
+            "split-vote drugs...",
+            flush=True,
+        )
+        cross_decisions = _cross_domain_arbitration(
+            uncertain, tool_scores, visits, cfg.llm_model
+        )
+    cross_accepted = [d for d in uncertain if cross_decisions.get(d) == "ACCEPT"]
+    cross_rejected = [d for d in uncertain if cross_decisions.get(d) != "ACCEPT"]
+
+    predicted = auto_accepted + cross_accepted
+
+    # DDI check on full predicted set (auto-accepted + cross-domain accepted)
     ddi = check_ddi(predicted)
 
     lines = [
@@ -533,8 +669,11 @@ def p4_summarize_tool(patient_id: str) -> str:
         f"Tools with results: {', '.join(t for t in tool_order if t in tool_scores)}",
         "",
         "Tool-level zone summary:",
-        f"  AUTO_ACCEPT (>=2 tools agreed): {len(auto_accepted)} drugs",
-        f"  UNCERTAIN   (1 tool only):      {len(uncertain)} drugs",
+        f"  AUTO_ACCEPT (>=2 tools agreed):       {len(auto_accepted)} drugs",
+        f"  UNCERTAIN   (1 tool only, pre-synth): {len(uncertain)} drugs",
+        f"  Cross-domain ACCEPT:                  {len(cross_accepted)} drugs",
+        f"  Cross-domain REJECT:                  {len(cross_rejected)} drugs",
+        f"  Final predicted:                      {len(predicted)} drugs",
         "",
         f"{'Drug':<44} {'Votes':>5}  {'Mean':>6}  {'Long':>6}  {'Sfty':>6}  {'EHR':>6}  Zone",
         "─" * 96,
@@ -549,15 +688,26 @@ def p4_summarize_tool(patient_id: str) -> str:
             f"  {l:>6.3f}  {s:>6.3f}  {e:>6.3f}  AUTO_ACCEPT"
         )
 
-    if uncertain:
+    if cross_accepted:
         lines.append("")
-        for drug in uncertain:
+        for drug in cross_accepted:
             l = tool_scores.get("longitudinal",    {}).get(drug, 0.0)
             s = tool_scores.get("safety_molecule", {}).get(drug, 0.0)
             e = tool_scores.get("ehr_centric",     {}).get(drug, 0.0)
             lines.append(
                 f"  {drug_label(drug):<42} {vote_count[drug]:>5}  {mean_score[drug]:>6.3f}"
-                f"  {l:>6.3f}  {s:>6.3f}  {e:>6.3f}  UNCERTAIN"
+                f"  {l:>6.3f}  {s:>6.3f}  {e:>6.3f}  CROSS_ACCEPT"
+            )
+
+    if cross_rejected:
+        lines.append("")
+        for drug in cross_rejected:
+            l = tool_scores.get("longitudinal",    {}).get(drug, 0.0)
+            s = tool_scores.get("safety_molecule", {}).get(drug, 0.0)
+            e = tool_scores.get("ehr_centric",     {}).get(drug, 0.0)
+            lines.append(
+                f"  {drug_label(drug):<42} {vote_count[drug]:>5}  {mean_score[drug]:>6.3f}"
+                f"  {l:>6.3f}  {s:>6.3f}  {e:>6.3f}  CROSS_REJECT"
             )
 
     lines.append("")
@@ -571,27 +721,33 @@ def p4_summarize_tool(patient_id: str) -> str:
     lines.append(f"Majority  (2/{n_tools} tools): {len(majority)} drugs — AUTO_ACCEPT")
     if majority:
         lines.append("  " + ", ".join(drug_label(d) for d in majority))
-    lines.append(f"Uncertain (1/{n_tools} tools): {len(uncertain)} drugs — agent decides")
-    if uncertain:
-        lines.append("  " + ", ".join(
-            f"{drug_label(d)} ({mean_score[d]:.3f})" for d in uncertain))
+    lines.append(
+        f"Split-vote (1/{n_tools} tool): {len(uncertain)} drugs — "
+        f"cross-domain arbitration → {len(cross_accepted)} accepted, {len(cross_rejected)} rejected"
+    )
+    if cross_accepted:
+        lines.append("  Cross-accepted: " + ", ".join(
+            f"{drug_label(d)} ({mean_score[d]:.3f})" for d in cross_accepted))
+    if cross_rejected:
+        lines.append("  Cross-rejected: " + ", ".join(
+            f"{drug_label(d)} ({mean_score[d]:.3f})" for d in cross_rejected))
     lines.append("")
 
-    # ATC class distribution (auto-accepted)
+    # ATC class distribution (all predicted drugs)
     from collections import defaultdict
     atc_classes: dict[str, list] = defaultdict(list)
     for drug in predicted:
         cls = drug[0].upper() if drug else "?"
         atc_classes[cls].append(drug)
 
-    lines.append("ATC class distribution (AUTO_ACCEPT drugs):")
+    lines.append(f"ATC class distribution ({len(predicted)} predicted drugs):")
     for cls in sorted(atc_classes):
         drugs_str = ", ".join(drug_label(d) for d in atc_classes[cls])
         lines.append(f"  [{cls}] {atc_desc(cls)}: {drugs_str}")
     lines.append("")
 
     # DDI summary
-    lines.append(f"DDI summary ({len(predicted)} AUTO_ACCEPT drugs):")
+    lines.append(f"DDI summary ({len(predicted)} predicted drugs):")
     if ddi["is_safe"]:
         lines.append("  No drug-drug interactions detected.")
     else:
@@ -626,9 +782,9 @@ def p4_summarize_tool(patient_id: str) -> str:
                 + ", ".join(drug_label(d) for d in sorted(dropped))
             )
     lines.append("")
-    lines.append("AUTO_ACCEPT ATC3 codes (include directly): " + ", ".join(predicted))
-    if uncertain:
-        lines.append("UNCERTAIN ATC3 codes (agent decides):     " + ", ".join(uncertain))
+    lines.append("PREDICTED ATC3 codes (AUTO_ACCEPT + cross-domain): " + ", ".join(predicted))
+    if cross_rejected:
+        lines.append("CROSS_REJECTED ATC3 codes (removed by synthesis): " + ", ".join(cross_rejected))
     lines.append("=" * 72)
 
     # Clear accumulator so re-runs don't stale-contaminate

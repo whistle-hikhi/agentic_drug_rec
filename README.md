@@ -8,12 +8,15 @@ arbitration strategy to produce safe, clinically justified drug recommendations.
 
 ## Overview
 
-Phase 4 introduces **dual-model tools with Role-Play LLM arbitration** — a three-layer
-decision architecture where drug candidates pass through ML model agreement zones before
-reaching a final consultant-physician LLM agent.  The pipeline is fully self-contained:
-all model architectures, data loading, DDI checking, and agent logic are implemented
-from scratch in this repository.  The only external dependency on `agentic_pipeline/`
-is the pre-trained model checkpoint files and preprocessed PKL data.
+Phase 4 introduces **dual-model tools with DDI-aware Role-Play LLM arbitration and
+cross-domain synthesis** — a four-layer decision architecture where drug candidates
+pass through ML model agreement zones, domain-specific LLM arbitration (with DDI
+context injected), cross-domain synthesis (all three domain signals reviewed
+simultaneously for split-vote drugs), and finally a consultant-physician LLM agent.
+The pipeline is fully self-contained: all model architectures, data loading, DDI
+checking, and agent logic are implemented from scratch in this repository.  The only
+external dependency on `agentic_pipeline/` is the pre-trained model checkpoint files
+and preprocessed PKL data.
 
 ---
 
@@ -32,7 +35,7 @@ is the pre-trained model checkpoint files and preprocessed PKL data.
 │                    LANGGRAPH REACT AGENT (Consultant Physician)               │
 │                         LLM: gpt-4o-mini / gpt-4o                            │
 │  Orchestrates the four tools below. Reviews the structured summary and makes  │
-│  the final holistic prescription decision based on vote counts and DDI risk.  │
+│  the final holistic prescription decision on the pre-arbitrated drug set.     │
 └─────────┬──────────────────┬──────────────────┬──────────────────┬────────────┘
           │                  │                  │                  │
     TOOL CALL 1        TOOL CALL 2        TOOL CALL 3        TOOL CALL 4
@@ -43,9 +46,9 @@ is the pre-trained model checkpoint files and preprocessed PKL data.
 │     TOOL        │ │     TOOL        │ │     TOOL        │ │     TOOL        │
 │                 │ │                 │ │                 │ │  (called last)  │
 │  RETAIN         │ │  SafeDrug       │ │  DEPOT          │ │                 │
-│    +            │ │    +            │ │    +            │ │ Merges outputs  │
-│  GAMENet        │ │  MoleRec        │ │  MedAlign       │ │ from all 3      │
-│                 │ │                 │ │                 │ │ domain tools    │
+│    +            │ │    +            │ │    +            │ │ Merges outputs, │
+│  GAMENet        │ │  MoleRec        │ │  MedAlign       │ │ cross-domain    │
+│                 │ │                 │ │                 │ │ synthesis, DDI  │
 └────────┬────────┘ └────────┬────────┘ └────────┬────────┘ └────────┬────────┘
          │                   │                   │                   │
          └───────────────────┴───────────────────┘                   │
@@ -65,15 +68,17 @@ is the pre-trained model checkpoint files and preprocessed PKL data.
   │ → Passes    │    │  grey zone)  │    │ → Dropped   │            │
   │   directly  │    │              │    │   silently  │            │
   └──────┬──────┘    └──────┬───────┘    └─────────────┘            │
-         │                  │                                        │
-         │                  ▼                                        │
+         │                  │                                       │
+         │                  ▼                                       │
          │      ┌───────────────────────┐                           │
          │      │   ROLE-PLAY LLM       │                           │
          │      │   ARBITRATION         │                           │
+         │      │   (DDI-aware)         │                           │
          │      │                       │                           │
          │      │  Domain-specific      │                           │
          │      │  clinical persona:    │                           │
          │      │                       │                           │
+         │      │  Tool 1 →             │                           │
          │      │  Temporal Historian   │                           │
          │      │                       │                           │
          │      │  Tool 2 →             │                           │
@@ -84,9 +89,11 @@ is the pre-trained model checkpoint files and preprocessed PKL data.
          │      │  EHR Integration      │                           │
          │      │  Specialist           │                           │
          │      │                       │                           │
-         │      │  PrimeKG              │                           │
-         │      │  KG context injected  │                           │
-         │      │  per uncertain drug   │                           │
+         │      │  Per uncertain drug:  │                           │
+         │      │  · PrimeKG context    │                           │
+         │      │  · DDI conflicts with │                           │
+         │      │    AUTO_ACCEPT set    │                           │
+         │      │    injected in table  │                           │
          │      │                       │                           │
          │      │  → ACCEPT / REJECT    │                           │
          │      │    per drug           │                           │
@@ -106,8 +113,22 @@ is the pre-trained model checkpoint files and preprocessed PKL data.
                               │  Mean confidence across tools   │
                               │  Tool-level zone:               │
                               │    AUTO_ACCEPT : votes >= 2     │
-                              │    UNCERTAIN   : votes == 1     │
-                              │  DDI analysis (greedy safe set) │
+                              │    SPLIT-VOTE  : votes == 1     │
+                              │                                 │
+                              │  ┌──────────────────────────┐   │
+                              │  │  CROSS-DOMAIN SYNTHESIS  │   │
+                              │  │                          │   │
+                              │  │  Split-vote drugs sent   │   │
+                              │  │  to a single LLM that    │   │
+                              │  │  sees all 3 domain       │   │
+                              │  │  signals simultaneously  │   │
+                              │  │  (Long + Safety + EHR)   │   │
+                              │  │                          │   │
+                              │  │  → CROSS_ACCEPT          │   │
+                              │  │    CROSS_REJECT           │   │
+                              │  └──────────────────────────┘   │
+                              │                                 │
+                              │  DDI analysis on full set       │
                               │  ATC class distribution         │
                               │  Prior medication context       │
                               └─────────────────┬───────────────┘
@@ -120,9 +141,10 @@ is the pre-trained model checkpoint files and preprocessed PKL data.
                               │  · Unanimous drugs (3/3 tools)  │
                               │    → include directly           │
                               │  · Majority drugs (2/3 tools)   │
+                              │    → include directly           │
+                              │  · Cross-accepted (1/3 tools,   │
+                              │    synthesis approved)          │
                               │    → include with review        │
-                              │  · Uncertain drugs (1/3 tools)  │
-                              │    → agent decides              │
                               │  · DDI-flagged drugs            │
                               │    → agent decides removal      │
                               │                                 │
@@ -135,7 +157,7 @@ is the pre-trained model checkpoint files and preprocessed PKL data.
 
 ## Decision Zone Details
 
-Each dual-model tool classifies every candidate drug through two tiers of zoning:
+Each dual-model tool classifies every candidate drug through four tiers of decision-making:
 
 ### Tier 1 — Per-Model Score Classification
 
@@ -153,14 +175,33 @@ Each dual-model tool classifies every candidate drug through two tiers of zoning
 | REJECT   | REJECT   | AUTO_REJECT     | Drug dropped silently               |
 | anything else      | — | UNCERTAIN    | Sent to Role-Play LLM               |
 
-### Tier 3 — Tool-Level Summary Zone (across three tools)
+### Tier 3 — Role-Play LLM Arbitration (DDI-aware)
 
-| Votes | Result      | Action                                              |
-|-------|-------------|-----------------------------------------------------|
-| 3/3   | UNANIMOUS   | AUTO_ACCEPT — include directly                      |
-| 2/3   | MAJORITY    | AUTO_ACCEPT — include directly                      |
-| 1/3   | UNCERTAIN   | Agent decides based on clinical context             |
-| 0/3   | —           | Drug does not appear in final set                   |
+Uncertain drugs are sent to a domain-specific Role-Play LLM persona.  The LLM
+prompt now includes a **DDI conflict column** per uncertain drug, showing which
+already-accepted (AUTO_ACCEPT) drugs it interacts with:
+
+| Drug             | Model_A | Model_B | Zone_A  | Zone_B  | DDI_conflicts       |
+|------------------|---------|---------|---------|---------|---------------------|
+| Warfarin (B01AA) |   0.72  |   0.38  | ACCEPT  | REJECT  | [DDI: Aspirin]      |
+| Metformin (A10B) |   0.55  |   0.61  | UNCERTAIN | ACCEPT | —                  |
+
+A preamble note is injected when DDI conflicts are detected, signalling that
+conflicting drugs carry a strong additional reason for rejection.
+
+### Tier 4 — Cross-Domain Synthesis (split-vote drugs)
+
+Drugs accepted by exactly **1 of 3** tools enter a dedicated cross-domain arbitration
+step inside `p4_summarize_tool`.  A single LLM sees all three domain scores
+simultaneously — unlike the per-tool Role-Play LLMs which operate in isolation.
+
+| Votes | Result        | Action                                                    |
+|-------|---------------|-----------------------------------------------------------|
+| 3/3   | UNANIMOUS     | AUTO_ACCEPT — include directly                            |
+| 2/3   | MAJORITY      | AUTO_ACCEPT — include directly                            |
+| 1/3   | CROSS_ACCEPT  | Cross-domain synthesis approved — included in prediction  |
+| 1/3   | CROSS_REJECT  | Cross-domain synthesis rejected — dropped                 |
+| 0/3   | —             | Drug does not appear in final set                         |
 
 ---
 
@@ -360,8 +401,22 @@ reload_thresholds()
 
 ### Using a different LLM provider
 
-Replace `ChatOpenAI` in `agent/tools.py` (`_call_roleplay_llm`) and
-`agent/graph.py` (`build_phase4_agent`) with any LangChain-compatible chat model.
+Replace `ChatOpenAI` in `agent/tools.py` (`_call_roleplay_llm`,
+`_cross_domain_arbitration`) and `agent/graph.py` (`build_phase4_agent`) with
+any LangChain-compatible chat model.
+
+### Customising cross-domain synthesis
+
+`_cross_domain_arbitration()` in `agent/tools.py` controls the split-vote
+arbitration prompt and system persona.  Edit the `system_msg` string to change
+the panel's decision criteria, or adjust the threshold logic (currently all
+1-vote drugs are sent for arbitration).
+
+### Disabling DDI-aware arbitration
+
+Pass `accepted_drugs=None` (or omit the argument) when calling
+`_call_roleplay_llm()` to revert to the DDI-unaware prompt.  The DDI column
+and preamble note are only injected when `accepted_drugs` is non-empty.
 
 ---
 

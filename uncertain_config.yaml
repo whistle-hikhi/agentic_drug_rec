@@ -1,43 +1,53 @@
-# ──────────────────────────────────────────────────────────────────────────────
-# Phase 4 — Per-Model Uncertainty Windows
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 4 — Per-Model Uncertainty Windows  (AUTO-CALIBRATED)
 #
-# Each model has its own accept_threshold and reject_threshold.
-# Per-drug score classification:
-#   ACCEPT    → score >= accept_threshold
-#   REJECT    → score <  reject_threshold
-#   UNCERTAIN → reject_threshold <= score < accept_threshold
+# Calibration targets:
+#   accept_threshold  → precision ≥ 70% on the validation split
+#   reject_threshold  → recall coverage ≥ 95% on the validation split
 #
-# Per-tool combined zoning (two models per tool):
-#   AUTO_ACCEPT : both models say ACCEPT  → drug passes directly
-#   AUTO_REJECT : both models say REJECT  → drug dropped silently
-#   UNCERTAIN   : any other combination   → sent to Role-Play LLM
-# ──────────────────────────────────────────────────────────────────────────────
+# Uncertainty zone for each model: [reject_threshold, accept_threshold)
+#   AUTO_ACCEPT : both models in a pair score >= their accept_threshold
+#   AUTO_REJECT : both models in a pair score <  their reject_threshold
+#   UNCERTAIN   : anything else → sent to Role-Play LLM for arbitration
+# ─────────────────────────────────────────────────────────────────────────────
 
 models:
 
-  # ── Longitudinal Tool (RETAIN + GAMENet) ───────────────────────────────────
+  # ── Longitudinal Tool (RETAIN + GAMENet) ────────────────
   retain:
-    accept_threshold: 0.60
-    reject_threshold: 0.40
+    # High-recall attention model; broadly distributed probability mass.
+    # Uncertain zone: [0.018, 0.023)
+    accept_threshold: 0.023
+    reject_threshold: 0.018
 
   gamenet:
-    accept_threshold: 0.60
-    reject_threshold: 0.40
+    # Graph-memory model; more selective than RETAIN.
+    # Uncertain zone: [0.046, 0.453)
+    accept_threshold: 0.453
+    reject_threshold: 0.046
 
-  # ── Safety Molecule Tool (SafeDrug + MoleRec) ──────────────────────────────
+  # ── Safety Molecule Tool (SafeDrug + MoleRec) ───────────
   safedrug:
-    accept_threshold: 0.60
-    reject_threshold: 0.40
+    # DDI-constrained; trained to be conservative on safety.
+    # Uncertain zone: [0.054, 0.356)
+    accept_threshold: 0.356
+    reject_threshold: 0.054
 
   molerec:
-    accept_threshold: 0.60
-    reject_threshold: 0.40
+    # Substructure-weighted; very targeted predictions.
+    # Uncertain zone: [0.050, 0.306)
+    accept_threshold: 0.306
+    reject_threshold: 0.050
 
-  # ── EHR-Centric Tool (DEPOT + MedAlign) ───────────────────────────────────
+  # ── EHR-Centric Tool (DEPOT + MedAlign) ─────────────────
   depot:
-    accept_threshold: 0.60
-    reject_threshold: 0.40
+    # Disease-progression model from visit-to-visit EHR deltas.
+    # Uncertain zone: [0.048, 0.314)
+    accept_threshold: 0.314
+    reject_threshold: 0.048
 
   medalign:
-    accept_threshold: 0.60
-    reject_threshold: 0.40
+    # Alignment model integrating codes, descriptions, and structure.
+    # Uncertain zone: [0.046, 0.392)
+    accept_threshold: 0.392
+    reject_threshold: 0.046
