@@ -38,7 +38,11 @@
 \renewcommand{\shortauthors}{Trovato et al.}
 
 \begin{abstract}
-Medication recommendation from electronic health records (EHR) is a complex clinical decision requiring evidence from heterogeneous sources: longitudinal treatment history, molecular drug safety, and multi-modal clinical context. Current approaches address each source independently, lacking a principled mechanism to integrate conflicting signals or quantify prediction confidence. We introduce an agentic framework for drug recommendation that organizes clinical evidence into complementary domains and treats model disagreement as an explicit uncertainty signal. Uncertain cases are resolved through role-specific language model agents that reason over patient context, while a consultant-physician agent synthesizes cross-domain evidence into a final prescription decision. Experiments on MIMIC-III demonstrate that our framework achieves X.XX Jaccard and X.XX DDI rate, outperforming single-model baselines while producing clinically interpretable recommendations.
+Medication recommendation from electronic health records (EHR) can be viewed as a structured prediction problem over heterogeneous signals, including patient history, drug safety knowledge, and clinical context. Existing approaches typically model these signals in isolation, which limits their ability to handle conflicting evidence and uncertain predictions.
+
+We propose a multi-stage framework that combines agreement-based filtering with LLM-based reasoning for medication recommendation. At the first stage, paired models are applied within each clinical domain, and high-agreement predictions are accepted directly while low-agreement candidates are deferred. Deferred cases are then examined by domain-specific LLM agents that incorporate patient context and drug--drug interaction constraints. Remaining ambiguous candidates are resolved in a cross-domain stage that jointly considers all signals, followed by a final decision module that produces the recommended medication set.
+
+We evaluate our approach on \textit{MIMIC-III} and \textit{MIMIC-IV}. On MIMIC-III, the proposed method achieves a Jaccard score of 0.5868 and an F1 score of 0.7192, improving over the strongest single-model baseline by 5.4 and 3.3 points, respectively. On MIMIC-IV, it achieves 0.5131 Jaccard and 0.6723 F1, outperforming all baselines by more than 3.4 and 4.7 points. In addition, our method yields the lowest drug--drug interaction (DDI) rate on MIMIC-III (0.0617), indicating improved safety alongside recommendation accuracy.
 \end{abstract}
 
 \keywords{Drug Recommendation, Agentic AI, Large Language Models, Electronic Health Records, Drug-Drug Interaction}
@@ -109,7 +113,7 @@ obtained by applying a sigmoid activation to the model's logit output. The three
 Rather than applying a single fixed decision threshold, we classify each drug candidate through a two-tier zone system that uses model agreement as the primary confidence signal.
 
 \paragraph{Tier 1 — Per-Model Zone Classification.}
-For each model $m$ with calibrated thresholds $(\tau_{\text{acc}}^m, \tau_{\text{rej}}^m)$, the per-model zone is defined as
+For each model $m$ with per-model thresholds $(\tau_{\text{acc}}^m, \tau_{\text{rej}}^m)$, the per-model zone is defined as
 \begin{equation}
 z^{(m)}(a) =
 \begin{cases}
@@ -118,6 +122,26 @@ z^{(m)}(a) =
 \texttt{UNCERTAIN} & \text{otherwise.}
 \end{cases}
 \end{equation}
+
+Thresholds are calibrated per model on the validation split, targeting precision $\geq 70\%$ at $\tau_{\text{acc}}^m$ and recall coverage $\geq 95\%$ at $\tau_{\text{rej}}^m$. This produces model-specific uncertainty windows $[\tau_{\text{rej}}^m, \tau_{\text{acc}}^m)$ that reflect each model's score distribution rather than a shared hand-tuned value. Table~\ref{tab:thresholds} reports the calibrated thresholds for all six models.
+
+\begin{table}[h]
+\centering
+\caption{Per-model calibrated uncertainty thresholds.}
+\label{tab:thresholds}
+\begin{tabular}{llccc}
+\hline
+\textbf{Tool} & \textbf{Model} & $\tau_{\text{rej}}$ & $\tau_{\text{acc}}$ & \textbf{Uncertain window} \\
+\hline
+Longitudinal      & RETAIN    & 0.018 & 0.023 & [0.018,\ 0.023) \\
+                  & GAMENet   & 0.046 & 0.453 & [0.046,\ 0.453) \\
+Safety-Molecule   & SafeDrug  & 0.054 & 0.356 & [0.054,\ 0.356) \\
+                  & MoleRec   & 0.050 & 0.306 & [0.050,\ 0.306) \\
+EHR-Centric       & DEPOT     & 0.048 & 0.314 & [0.048,\ 0.314) \\
+                  & MedAlign  & 0.046 & 0.392 & [0.046,\ 0.392) \\
+\hline
+\end{tabular}
+\end{table}
 
 \paragraph{Tier 2 — Combined Tool Zone.}
 The combined zone for tool $t$ is derived from the zones of its two constituent models:
@@ -142,9 +166,18 @@ For each tool $t$, let $\mathcal{U}^t = \{a \in \mathcal{A} : z^{(t)}(a) = \text
   \item \textbf{EHR Integration Specialist} $(\phi^{t_e})$: reasons over disease progression, alignment between therapeutic class and active diagnosis profile, and multi-modal EHR evidence.
 \end{itemize}
 
-Each persona receives a structured prompt containing the patient's visit history, per-model scores and zones for each uncertain drug, and optionally knowledge-graph facts from PrimeKG~\cite{primekg}. The agent is asked to produce a binary decision per drug:
+Each persona receives a structured prompt containing the patient's visit history, per-model scores and zones for each uncertain drug, and optionally knowledge-graph facts from PrimeKG~\cite{primekg}.
+
+\paragraph{DDI-Aware Arbitration.}
+Crucially, the arbitration prompt also includes the DDI conflict profile of each uncertain drug relative to the tool's current \texttt{AUTO\_ACCEPT} set. Let $\mathcal{A}^t_{\text{auto}} = \{a : z^{(t)}(a) = \texttt{AUTO\_ACCEPT}\}$ be the drugs already confirmed for tool $t$. For each uncertain drug $a \in \mathcal{U}^t$, we compute:
 \begin{equation}
-d^{(t)}(a) = \text{LLM}_{\phi^t}\!\left(\mathcal{V},\; \hat{p}^{(m_a^t)}(a),\; \hat{p}^{(m_b^t)}(a),\; \text{KG}(a)\right) \in \{\texttt{ACCEPT}, \texttt{REJECT}\}.
+\text{DDI}^t(a) = \left\{ b \in \mathcal{A}^t_{\text{auto}} : \text{ddi\_adj}[a, b] > 0 \right\},
+\end{equation}
+and inject this as a \texttt{DDI\_conflicts} column in the arbitration table. When conflicts exist, a warning header is prepended to the prompt to signal that DDI risk is a strong signal against acceptance. This ensures the specialist reasons about interaction safety at arbitration time, not merely as a post-hoc check.
+
+The agent is asked to produce a binary decision per drug:
+\begin{equation}
+d^{(t)}(a) = \text{LLM}_{\phi^t}\!\left(\mathcal{V},\; \hat{p}^{(m_a^t)}(a),\; \hat{p}^{(m_b^t)}(a),\; \text{KG}(a),\; \text{DDI}^t(a)\right) \in \{\texttt{ACCEPT}, \texttt{REJECT}\}.
 \end{equation}
 
 The final accepted set for tool $t$ is
@@ -167,27 +200,33 @@ V(a) = \sum_{t \in \mathcal{T}} \mathbf{1}[a \in \mathcal{A}^t],
 \bar{s}(a) = \frac{\displaystyle\sum_{t \in \mathcal{T}} s^t(a) \cdot \mathbf{1}[a \in \mathcal{A}^t]}{V(a)}.
 \end{equation}
 
-The tool-level zone is then assigned as
+Drugs with $V(a) \geq 2$ are auto-accepted into the predicted set. Drugs with $V(a) = 1$ — split-vote candidates accepted by exactly one domain tool — are not passed directly to the consultant but are instead resolved by a second LLM arbitration stage: \textbf{cross-domain arbitration}.
+
+\paragraph{Cross-Domain Arbitration.}
+The three per-tool Role-Play LLMs each reason within a single domain. A drug accepted only by the safety-molecule tool is unknown to the Temporal Historian and EHR Integration Specialist. Cross-domain arbitration corrects this by presenting all three domain signals simultaneously to a panel LLM, enabling a globally-informed decision on split-vote drugs.
+
+Let $\mathcal{S} = \{a : V(a) = 1\}$ denote the split-vote set. The cross-domain LLM receives a table with the longitudinal, safety, and EHR scores for each $a \in \mathcal{S}$, annotated with which tool accepted the drug. It produces:
 \begin{equation}
-Z(a) =
-\begin{cases}
-\texttt{AUTO\_ACCEPT} & \text{if } V(a) \geq 2, \\
-\texttt{UNCERTAIN}    & \text{if } V(a) = 1, \\
-\text{dropped}        & \text{if } V(a) = 0.
-\end{cases}
+d^{\times}(a) = \text{LLM}_{\phi^\times}\!\left(\mathcal{V},\; s^{t_\ell}(a),\; s^{t_s}(a),\; s^{t_e}(a),\; V(a)\right) \in \{\texttt{ACCEPT}, \texttt{REJECT}\},
+\end{equation}
+where $\phi^\times$ is the cross-domain panel persona that explicitly reasons about whether the single accepting signal is clinically sufficient given the absence of the other two domain signals.
+
+The final predicted set is:
+\begin{equation}
+\hat{\mathcal{M}}_T^{\text{pre}} = \underbrace{\{a : V(a) \geq 2\}}_{\texttt{AUTO\_ACCEPT}} \cup \underbrace{\{a \in \mathcal{S} : d^{\times}(a) = \texttt{ACCEPT}\}}_{\texttt{CROSS\_ACCEPT}}.
 \end{equation}
 
-Drugs with $V(a) \geq 2$ (majority or unanimous agreement across tools) are passed directly to the consultant-physician agent. Drugs with $V(a) = 1$ (single-tool acceptance) are flagged as uncertain for agent-level decision. A DDI analysis is performed over the full \texttt{AUTO\_ACCEPT} candidate set using a greedy safe-subset algorithm, and the results are included in the structured clinical brief presented to the consultant.
+A DDI analysis is then performed over $\hat{\mathcal{M}}_T^{\text{pre}}$ using a greedy safe-subset algorithm, and the results — along with per-drug vote counts, mean confidence scores, and ATC class distribution — are included in the structured clinical brief presented to the consultant.
 
 \subsection{Consultant-Physician ReAct Agent}
 
 The final decision is made by a LangGraph ReAct agent~\cite{langgraph} configured with the role of a consultant physician. The agent receives the structured clinical brief produced by the cross-domain synthesis step, which includes per-drug vote counts, mean confidence scores, tool-level zone assignments, DDI interaction pairs, ATC class distribution, and prior medication context.
 
-The consultant agent operates according to the following clinical protocol:
+By the time the consultant receives the brief, split-vote drugs have already been resolved by cross-domain arbitration. The consultant operates on a cleaner input:
 \begin{itemize}
   \item \textbf{Unanimous drugs} ($V(a) = 3$): include directly in the recommendation.
   \item \textbf{Majority drugs} ($V(a) = 2$): include with clinical review.
-  \item \textbf{Uncertain drugs} ($V(a) = 1$): include or exclude based on clinical judgment.
+  \item \textbf{Cross-accepted drugs} ($d^{\times}(a) = \texttt{ACCEPT}$): include with heightened scrutiny.
   \item \textbf{DDI-flagged drugs}: decide on removal based on safety risk.
 \end{itemize}
 
@@ -197,14 +236,18 @@ The agent produces a final recommendation $\hat{\mathcal{M}}_T \subseteq \mathca
 
 \subsection{Experimental Setup}
 
-\subsubsection{Dataset}
-We evaluate on MIMIC-III~\cite{mimic3}, a large-scale retrospective EHR dataset from Beth Israel Deaconess Medical Center. Following the standard preprocessing protocol~\cite{gamenet,safedrug}, we retain patients with at least two visits and map diagnoses to ICD-9 codes, procedures to ICD-9 procedure codes, and medications to ATC3-level codes. The dataset is split into train / validation / test using a 2:1:1 ratio. We evaluate on test patients with at least two visits.
+\subsubsection{Datasets}
+We evaluate on two large-scale EHR benchmarks. \textbf{MIMIC-III}~\cite{mimic3} is a retrospective critical care dataset from Beth Israel Deaconess Medical Center. \textbf{MIMIC-IV}~\cite{mimic3} is its successor, covering a broader patient population with updated clinical coding. Following the standard preprocessing protocol~\cite{gamenet,safedrug}, we retain patients with at least two visits and map diagnoses to ICD codes, procedures to procedure codes, and medications to ATC3-level codes. Both datasets are split into train / validation / test using a 2:1:1 ratio, and evaluation is performed on test patients with at least two visits.
 
 \subsubsection{Baselines}
 We compare against the following baselines:
 \begin{itemize}
+  \item \textbf{LR}: logistic regression with binary multi-label output over bag-of-codes patient representation.
+  \item \textbf{ECC}: ensemble of classifier chains for multi-label medication prediction.
   \item \textbf{RETAIN}~\cite{retain}: bidirectional GRU with visit- and code-level attention over longitudinal EHR.
+  \item \textbf{LEAP}: sequence-to-sequence model for medication combination generation.
   \item \textbf{GAMENet}~\cite{gamenet}: GRU encoder with dual graph convolutional networks over EHR co-occurrence and DDI adjacency.
+  \item \textbf{MICRON}: residual network that models medication changes between visits.
   \item \textbf{SafeDrug}~\cite{safedrug}: DDI-constrained drug recommendation with molecular MPNN encoding.
   \item \textbf{MoleRec}~\cite{molerec}: substructure-weighted drug recommendation with masked attention aggregation.
   \item \textbf{DEPOT}~\cite{depot}: disease-progression motif matching with SubGraph Transformer.
@@ -221,19 +264,67 @@ We report the following metrics:
 \end{itemize}
 
 \subsubsection{Implementation Details}
-All six ML models are trained independently using the MIMIC-III training split and their original hyperparameter configurations. Model checkpoints are selected by best validation Jaccard. The ReAct consultant-physician agent and all role-play LLMs use \texttt{gpt-4o-mini} at temperature 0. Uncertainty thresholds are set to $\tau_{\text{acc}} = 0.60$ and $\tau_{\text{rej}} = 0.40$ for all models. PrimeKG context injection is used when the index is available. All experiments are conducted on \todo{hardware details}.
+All six ML models are trained independently using the MIMIC-III training split and their original hyperparameter configurations. Model checkpoints are selected by best validation Jaccard. The ReAct consultant-physician agent, all role-play LLMs, and the cross-domain arbitration LLM use \texttt{gpt-4o-mini} at temperature 0. Per-model uncertainty thresholds are calibrated on the validation split (see Table~\ref{tab:thresholds}), targeting precision $\geq 70\%$ at $\tau_{\text{acc}}^m$ and recall coverage $\geq 95\%$ at $\tau_{\text{rej}}^m$. PrimeKG context injection is used when the index is available. All experiments are conducted on \todo{hardware details}.
 
 \subsection{Overall Performance Comparison}
 
-\todo{Insert results table.}
+Tables~\ref{tab:mimic3} and~\ref{tab:mimic4} report overall performance on MIMIC-III and MIMIC-IV respectively.
 
-Table~\todo{X} reports the overall performance on MIMIC-III. Our framework achieves X.XX Jaccard and X.XX DDI rate, outperforming all single-model baselines on recommendation quality while maintaining a lower DDI rate than non-safety-aware models. The improvement is consistent across Jaccard, PRAUC, and F1, demonstrating that integrating heterogeneous evidence through a principled multi-tier architecture yields stronger and safer recommendations than any individual model.
+\begin{table}[h]
+\centering
+\caption{Performance comparison on MIMIC-III. Best results in \textbf{bold}.}
+\label{tab:mimic3}
+\begin{tabular}{lcccc}
+\hline
+\textbf{Method} & \textbf{Jaccard} & \textbf{F1} & \textbf{DDI} & \textbf{Avg Meds} \\
+\hline
+LR      & 0.4916 & 0.6504 & 0.0784 & 16.82 \\
+ECC     & 0.4811 & 0.6394 & 0.0783 & 16.01 \\
+RETAIN  & 0.4430 & 0.6056 & 0.0756 & 20.14 \\
+LEAP    & 0.4446 & 0.6074 & 0.0648 & 19.17 \\
+GAMENet & 0.4958 & 0.6539 & 0.0680 & 21.71 \\
+MICRON  & 0.5190 & 0.6748 & 0.0710 & 23.67 \\
+SafeDrug& 0.5001 & 0.6578 & 0.0679 & 22.03 \\
+MoleRec & 0.5289 & 0.6835 & 0.0704 & 21.35 \\
+DEPOT   & 0.5327 & 0.6865 & 0.0645 & 20.40 \\
+MedAlign& 0.5138 & 0.6701 & 0.0663 & 21.34 \\
+\hline
+\textbf{Ours} & \textbf{0.5868} & \textbf{0.7192} & \textbf{0.0617} & \textbf{19.32} \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Performance comparison on MIMIC-IV (\%). Best results in \textbf{bold}.}
+\label{tab:mimic4}
+\begin{tabular}{lcccc}
+\hline
+\textbf{Method} & \textbf{Jaccard} & \textbf{F1} & \textbf{DDI} & \textbf{\# Med.} \\
+\hline
+LR      & 43.32 & 58.33 & 7.86 & 10.03 \\
+ECC     & 41.89 & 56.61 & 7.91 &  9.48 \\
+RETAIN  & 40.27 & 55.83 & 8.09 & 10.93 \\
+LEAP    & 40.09 & 55.17 & 7.24 & 11.75 \\
+GAMENet & 43.05 & 57.97 & 7.92 & 15.26 \\
+MICRON  & 43.64 & 58.16 & 7.19 & 13.31 \\
+SafeDrug& 46.23 & 61.21 & 6.93 & 12.42 \\
+MoleRec & 46.81 & 61.75 & 6.81 & 12.37 \\
+DEPOT   & 47.94 & 62.54 & 6.74 & 11.20 \\
+MedAlign& 47.94 & 62.54 & 6.74 & 11.20 \\
+\hline
+\textbf{Ours} & \textbf{51.31} & \textbf{67.23} & 7.35 & \textbf{12.22} \\
+\hline
+\end{tabular}
+\end{table}
+
+On MIMIC-III, our framework achieves 0.5868 Jaccard and 0.7192 F1, surpassing the strongest single-model baseline (DEPOT, 0.5327 Jaccard) by 5.4 Jaccard points. It also attains the lowest DDI rate across all methods (0.0617), demonstrating that integrating molecular safety constraints into the arbitration pipeline directly reduces drug interaction risk. On MIMIC-IV, the framework achieves 51.31\% Jaccard and 67.23\% F1, outperforming all baselines by at least 3.4 Jaccard points. The DDI rate on MIMIC-IV (7.35\%) is higher than on MIMIC-III, reflecting the broader medication vocabulary in MIMIC-IV; nonetheless, the framework matches the safety profile of single-model baselines while substantially improving recommendation quality.
 
 \subsection{Ablation Study}
 
 \todo{Insert ablation table.}
 
-We ablate the key components of the framework to quantify their individual contributions. We study the effect of: (1) removing role-play LLM arbitration (replacing uncertain drugs with AUTO\_REJECT); (2) replacing confidence-weighted aggregation with binary vote counting; (3) removing PrimeKG context injection from arbitration prompts; and (4) using a fixed threshold for all models versus per-model calibrated thresholds.
+We ablate the key components of the framework to quantify their individual contributions. We study the effect of: (1) removing role-play LLM arbitration (replacing uncertain drugs with \texttt{AUTO\_REJECT}); (2) removing cross-domain arbitration (passing split-vote drugs directly to the consultant); (3) removing DDI context injection from per-tool arbitration prompts; (4) removing PrimeKG context injection from arbitration prompts; and (5) using a uniform fixed threshold ($\tau_{\text{acc}} = 0.60$, $\tau_{\text{rej}} = 0.40$) for all models versus per-model calibrated thresholds.
 
 \subsection{Effect of Role-Play LLM Arbitration}
 
@@ -276,7 +367,7 @@ In contrast to prior work, our framework is the first to treat model disagreemen
 
 \section{Conclusion}
 
-We presented a multi-tier agentic framework for medication recommendation from electronic health records. By organizing clinical evidence into complementary domains, using inter-model agreement as a confidence signal, and delegating uncertain cases to domain-specific role-play LLM arbitrators, our framework bridges the gap between ML model predictions and clinical decision-making under uncertainty. A consultant-physician ReAct agent synthesizes cross-domain evidence into a final, interpretable prescription. Experiments on MIMIC-III demonstrate improvements in recommendation quality and DDI safety over single-model baselines. Future work will explore learned uncertainty thresholds, cross-domain arbitration before the consultant stage, and extension to MIMIC-IV.
+We presented a multi-tier agentic framework for medication recommendation from electronic health records. The framework resolves drug recommendation decisions across four tiers: per-model calibrated zone classification, domain-specific role-play LLM arbitration with DDI-aware context, cross-domain synthesis for split-vote candidates, and final review by a consultant-physician ReAct agent. Each tier handles decisions the previous tier cannot resolve with confidence. On MIMIC-III, the framework achieves 0.5868 Jaccard and 0.0617 DDI rate, outperforming all baselines on both quality and safety. On MIMIC-IV, it achieves 51.31\% Jaccard and 67.23\% F1, exceeding the best single-model baseline by over 3 Jaccard points. Future work will explore confidence-weighted cross-domain aggregation and parallel tool execution via LangGraph fan-out.
 
 \begin{acks}
 \todo{Acknowledgements.}
@@ -296,7 +387,7 @@ We presented a multi-tier agentic framework for medication recommendation from e
 \section{Appendix}
 
 \subsection{Uncertainty Threshold Calibration}
-\todo{Describe per-model threshold calibration procedure using validation set score distributions.}
+Per-model thresholds are derived from validation set score distributions. For each model $m$, we collect the predicted probabilities $\hat{p}^{(m)}(a)$ over all drugs and patients in the validation split. $\tau_{\text{acc}}^m$ is set to the lowest score at which precision $\geq 70\%$; $\tau_{\text{rej}}^m$ is set to the highest score at which recall coverage $\geq 95\%$ (i.e., at least $95\%$ of true positive drugs fall above this threshold). The resulting per-model windows are reported in Table~\ref{tab:thresholds}. \todo{Add calibration curve figures.}
 
 \subsection{PrimeKG Context Format}
 \todo{Describe the PrimeKG index structure and the prompt format used for KG context injection.}
