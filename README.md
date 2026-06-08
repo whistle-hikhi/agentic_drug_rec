@@ -420,20 +420,6 @@ and preamble note are only injected when `accepted_drugs` is non-empty.
 
 ---
 
-## Citation
-
-If you use this pipeline in your research, please cite:
-
-```bibtex
-@inproceedings{recsync2026,
-  title     = {RecSync: Agentic Multi-Model Drug Recommendation with Role-Play LLM Arbitration},
-  booktitle = {Proceedings of RecSync 2026},
-  year      = {2026},
-}
-```
-
----
-
 ## License
 
 See [LICENSE](LICENSE) for details.
