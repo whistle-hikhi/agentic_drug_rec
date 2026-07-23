@@ -1,6 +1,6 @@
 # agentic_drug_rec
 
-Agentic Phase 4 medication recommendation pipeline for the **RecSync 2026** paper submission.  
+Agentic Phase 4 medication recommendation pipeline.  
 Built on MIMIC-III, this system combines six trained ML models with a multi-tier LLM
 arbitration strategy to produce safe, clinically justified drug recommendations.
 
