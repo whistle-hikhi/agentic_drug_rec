@@ -22,6 +22,8 @@ and preprocessed PKL data.
 
 ## Pipeline Architecture
 
+![Framework overview](asset/framework_fixed.png)
+
 ```
 ╔══════════════════════════════════════════════════════════════════════════════════╗
 ║                     PHASE 4 AGENTIC DRUG RECOMMENDATION                        ║
@@ -125,7 +127,7 @@ and preprocessed PKL data.
                               │  │  (Long + Safety + EHR)   │   │
                               │  │                          │   │
                               │  │  → CROSS_ACCEPT          │   │
-                              │  │    CROSS_REJECT           │   │
+                              │  │    CROSS_REJECT          │   │
                               │  └──────────────────────────┘   │
                               │                                 │
                               │  DDI analysis on full set       │
