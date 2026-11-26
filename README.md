@@ -1,6 +1,6 @@
 # agentic_drug_rec
 
-Agentic Phase 4 medication recommendation pipeline for the **RecSync 2026** paper submission.  
+Agentic Phase 4 medication recommendation pipeline.  
 Built on MIMIC-III, this system combines six trained ML models with a multi-tier LLM
 arbitration strategy to produce safe, clinically justified drug recommendations.
 
@@ -21,6 +21,8 @@ and preprocessed PKL data.
 ---
 
 ## Pipeline Architecture
+
+![Framework overview](asset/framework_fixed.png)
 
 ```
 ╔══════════════════════════════════════════════════════════════════════════════════╗
@@ -125,7 +127,7 @@ and preprocessed PKL data.
                               │  │  (Long + Safety + EHR)   │   │
                               │  │                          │   │
                               │  │  → CROSS_ACCEPT          │   │
-                              │  │    CROSS_REJECT           │   │
+                              │  │    CROSS_REJECT          │   │
                               │  └──────────────────────────┘   │
                               │                                 │
                               │  DDI analysis on full set       │
@@ -417,20 +419,6 @@ the panel's decision criteria, or adjust the threshold logic (currently all
 Pass `accepted_drugs=None` (or omit the argument) when calling
 `_call_roleplay_llm()` to revert to the DDI-unaware prompt.  The DDI column
 and preamble note are only injected when `accepted_drugs` is non-empty.
-
----
-
-## Citation
-
-If you use this pipeline in your research, please cite:
-
-```bibtex
-@inproceedings{recsync2026,
-  title     = {RecSync: Agentic Multi-Model Drug Recommendation with Role-Play LLM Arbitration},
-  booktitle = {Proceedings of RecSync 2026},
-  year      = {2026},
-}
-```
 
 ---
 
